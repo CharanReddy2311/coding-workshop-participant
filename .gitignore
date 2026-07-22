@@ -198,6 +198,10 @@ app/db
 .DS_Store
 **/.DS_Store
 
+# Local dev backend (see bin/local-dev-server.py) — isolated Postgres data
+# directory, used when Docker/LocalStack/Terraform aren't available.
+.localdb/
+
 # Node.js
 node_modules/
 npm-debug.log*
