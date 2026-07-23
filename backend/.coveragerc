@@ -1,0 +1,16 @@
+[run]
+branch = True
+omit =
+    */tests/*
+    */asn1crypto/*
+    */dateutil/*
+    */jwt/*
+    */pg8000/*
+    */scramp/*
+    */six.py
+    */*.dist-info/*
+    */__pycache__/*
+
+[report]
+show_missing = True
+precision = 1

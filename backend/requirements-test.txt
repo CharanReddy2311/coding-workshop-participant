@@ -1,0 +1,7 @@
+# Test-tooling dependencies, installed globally for the environment that
+# runs `pytest` — separate from each service's own requirements.txt, which
+# pins exactly what gets vendored into its Lambda deployment package.
+pytest
+pytest-cov
+PyJWT==2.10.1
+pg8000==1.31.5
