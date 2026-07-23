@@ -22,7 +22,6 @@ function renderLogin(initialEntries = ['/login']) {
     <MemoryRouter initialEntries={initialEntries}>
       <Routes>
         <Route path="/login" element={<Login />} />
-        <Route path="/forgot-password" element={<div>Forgot Password Page</div>} />
         <Route path="/" element={<div>Home Page</div>} />
       </Routes>
     </MemoryRouter>,
@@ -86,9 +85,4 @@ it('falls back to a generic message when the error has no message', async () => 
   await userEvent.click(screen.getByRole('button', { name: 'Sign In' }))
 
   expect(await screen.findByText('Unable to log in')).toBeInTheDocument()
-})
-
-it('links to the forgot-password page', () => {
-  renderLogin()
-  expect(screen.getByRole('link', { name: /forgot password/i })).toHaveAttribute('href', '/forgot-password')
 })

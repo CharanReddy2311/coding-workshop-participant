@@ -18,7 +18,7 @@ import os
 from pathlib import Path
 
 from _shared.auth import hash_password
-from _shared.db import cursor
+from _shared.db import cursor, split_statements
 from _shared.http import ApiError, response, with_http_errors
 
 logger = logging.getLogger()
@@ -30,17 +30,23 @@ SEED_DEPARTMENTS = ("Engineering", "Product", "Operations", "Finance")
 
 
 def _apply_schema(cur):
-    """Execute schema.sql.
+    """Execute schema.sql, one statement at a time.
 
-    psycopg 3 sends a statement without parameters over the simple query
-    protocol, which accepts several semicolon-separated statements in one
-    round trip. That keeps the whole file in a single transaction, so a
-    failure halfway through rolls the entire migration back rather than
-    leaving the database half-built.
+    The driver is pg8000 (see _shared/db.py), a pure-Python driver that sends
+    statements over the extended query protocol — one statement per execute.
+    Handing it the whole multi-statement file in a single `cur.execute(sql)`
+    call fails, so the file is split on statement boundaries first via
+    `split_statements` (the same helper `execute_script` uses).
+
+    Every statement runs on the caller's cursor, inside the caller's single
+    transaction, so a failure halfway through still rolls the entire migration
+    back rather than leaving the database half-built.
     """
     sql = SCHEMA_FILE.read_text(encoding="utf-8")
-    cur.execute(sql)
-    return sum(1 for line in sql.splitlines() if line.strip().upper().startswith("CREATE"))
+    statements = split_statements(sql)
+    for statement in statements:
+        cur.execute(statement)
+    return len(statements)
 
 
 def _seed(cur):

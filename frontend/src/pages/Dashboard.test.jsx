@@ -4,17 +4,19 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import Dashboard from './Dashboard'
 
-const { mockUseAuth, mockListProjects, mockListDeliverables, mockListAllocations } = vi.hoisted(() => ({
+const { mockUseAuth, mockListProjects, mockListDeliverables, mockListAllocations, mockGetBudgetSummary } = vi.hoisted(() => ({
   mockUseAuth: vi.fn(),
   mockListProjects: vi.fn(),
   mockListDeliverables: vi.fn(),
   mockListAllocations: vi.fn(),
+  mockGetBudgetSummary: vi.fn(),
 }))
 
 vi.mock('../context/AuthContext', () => ({ useAuth: () => mockUseAuth() }))
 vi.mock('../services/projectService', () => ({ listProjects: (...args) => mockListProjects(...args) }))
 vi.mock('../services/deliverableService', () => ({ listDeliverables: (...args) => mockListDeliverables(...args) }))
 vi.mock('../services/allocationService', () => ({ listAllocations: (...args) => mockListAllocations(...args) }))
+vi.mock('../services/budgetService', () => ({ getBudgetSummary: (...args) => mockGetBudgetSummary(...args) }))
 
 // recharts renders to SVG sized via ResizeObserver, neither of which jsdom
 // implements — the standard approach is to swap in lightweight stand-ins
@@ -98,6 +100,13 @@ const ALLOCATIONS = [
   { id: 'a3', user_id: 'u2', user_name: 'Margaret Hamilton', project_name: 'On Track Project', allocation_pct: 40, start_date: pastDate, end_date: futureDate },
 ]
 
+// Shape returned by budget-service /summary (already unwrapped by api.js).
+const BUDGET_SUMMARY = [
+  { project_id: 'p1', project_code: 'PR01', project_name: 'On Track Project', project_status: 'ACTIVE', planned_budget: 10000, planned_itemized: 10000, consumed: 5000, remaining: 5000, consumed_pct: 50, over_budget: false },
+  { project_id: 'p2', project_code: 'PR02', project_name: 'Overdue Project', project_status: 'ACTIVE', planned_budget: 20000, planned_itemized: 20000, consumed: 22000, remaining: -2000, consumed_pct: 110, over_budget: true },
+  { project_id: 'p3', project_code: 'PR03', project_name: 'Completed Project', project_status: 'COMPLETED', planned_budget: 5000, planned_itemized: 5000, consumed: 0, remaining: 5000, consumed_pct: 0, over_budget: false },
+]
+
 function renderDashboard() {
   return render(
     <MemoryRouter>
@@ -121,6 +130,7 @@ beforeEach(() => {
   mockListProjects.mockReset().mockResolvedValue({ projects: PROJECTS, meta: { total: PROJECTS.length } })
   mockListDeliverables.mockReset().mockResolvedValue({ deliverables: DELIVERABLES, meta: { total: DELIVERABLES.length } })
   mockListAllocations.mockReset().mockResolvedValue({ allocations: ALLOCATIONS, meta: { total: ALLOCATIONS.length } })
+  mockGetBudgetSummary.mockReset().mockResolvedValue(BUDGET_SUMMARY)
 })
 
 it('greets the logged-in user by name and role', async () => {
@@ -224,17 +234,31 @@ describe('Resource Allocation', () => {
 })
 
 describe('Budget vs Planned', () => {
-  it('estimates consumption from weighted deliverable progress for active projects', async () => {
+  function budgetCard() {
+    return screen.getByText('Budget vs Planned').closest('.MuiCard-root')
+  }
+
+  it('shows real consumed vs planned spend per project from budget-service', async () => {
     renderDashboard()
-    // On Track Project: deliverables weighted 50% and 100% at weight 1 each -> 75% estimate.
-    expect(await screen.findByText('PR01 — On Track Project')).toBeInTheDocument()
-    expect(screen.getByText(/75%/)).toBeInTheDocument()
+    await screen.findByText('Welcome, Test User')
+    const card = within(budgetCard())
+    expect(card.getByText('PR01 — On Track Project')).toBeInTheDocument()
+    expect(card.getByText(/\$5,000 of \$10,000 \(50%\)/)).toBeInTheDocument()
   })
 
-  it('does not include the completed project', async () => {
+  it('flags an over-budget project with its over-100% consumption', async () => {
     renderDashboard()
-    await screen.findByText('PR01 — On Track Project')
-    expect(screen.queryByText('PR03 — Completed Project')).not.toBeInTheDocument()
+    await screen.findByText('Welcome, Test User')
+    const card = within(budgetCard())
+    expect(card.getByText(/\$22,000 of \$20,000 \(110%\)/)).toBeInTheDocument()
+    // The subtitle summarises how many projects are over budget.
+    expect(card.getByText(/1 over budget/)).toBeInTheDocument()
+  })
+
+  it('shows a clear message when there is no budget data', async () => {
+    mockGetBudgetSummary.mockResolvedValue([])
+    renderDashboard()
+    expect(await screen.findByText('No budget data yet.')).toBeInTheDocument()
   })
 })
 

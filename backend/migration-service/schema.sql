@@ -185,6 +185,15 @@ CREATE INDEX IF NOT EXISTS idx_expenses_incurred_on ON expenses(incurred_on);
 
 -- The overlap index. Answers "who is over-allocated in this window" without
 -- scanning every allocation row.
+--
+-- Note there is deliberately no EXCLUDE constraint here. An exclusion
+-- constraint can only forbid *any* overlap for a user, which would reject a
+-- legitimate 50%+50% split across two projects. The real rule is "summed
+-- concurrent allocation_pct <= 100 on every day", which a constraint cannot
+-- express. allocations-service enforces it with a sweep-line check run inside
+-- the write transaction behind a per-user advisory lock (pg_advisory_xact_lock),
+-- which serialises concurrent writers for the same user and closes the
+-- check-then-write race without a constraint.
 CREATE INDEX IF NOT EXISTS idx_allocations_user_period
     ON allocations USING gist (user_id, period);
 

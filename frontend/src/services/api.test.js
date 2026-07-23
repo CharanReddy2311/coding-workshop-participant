@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 // axios.create() registers our interceptors at module-import time, so the
 // only way to unit-test that logic without a real network call is to mock
@@ -27,7 +27,6 @@ vi.mock('axios', () => {
 })
 
 const axios = (await import('axios')).default
-const api = (await import('./api')).default
 const {
   ApiError,
   getAccessToken,

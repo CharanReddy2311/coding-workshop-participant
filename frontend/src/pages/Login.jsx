@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import WorkspacesIcon from '@mui/icons-material/Workspaces'
-import { Alert, Box, Button, Card, CircularProgress, Link as MuiLink, Stack, TextField, Typography } from '@mui/material'
-import { Link as RouterLink, Navigate, useLocation, useNavigate } from 'react-router-dom'
+import { Alert, Box, Button, Card, CircularProgress, Stack, TextField, Typography } from '@mui/material'
+import { Navigate, useLocation, useNavigate } from 'react-router-dom'
 
 import { useAuth } from '../context/AuthContext'
 
@@ -109,12 +109,6 @@ export default function Login() {
             margin="normal"
             disabled={submitting}
           />
-
-          <Box sx={{ textAlign: 'right', mt: 0.5 }}>
-            <MuiLink component={RouterLink} to="/forgot-password" variant="body2" underline="hover">
-              Forgot password?
-            </MuiLink>
-          </Box>
 
           <Button
             type="submit"

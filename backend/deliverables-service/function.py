@@ -41,13 +41,13 @@ logger.setLevel(logging.INFO)
 SERVICE_NAME = "deliverables-service"
 SUPPORTED_METHODS = ("GET", "POST", "PUT", "DELETE", "OPTIONS")
 
-# Viewers read; Contributors and Managers create/edit; only Admins delete.
+# Viewers read; Contributors and Managers create/edit; Managers and Admins delete.
 PERMISSIONS = {
     "GET": ("VIEWER", "CONTRIBUTOR", "MANAGER", "ADMIN"),
     "OPTIONS": ("VIEWER", "CONTRIBUTOR", "MANAGER", "ADMIN"),
     "POST": ("CONTRIBUTOR", "MANAGER", "ADMIN"),
     "PUT": ("CONTRIBUTOR", "MANAGER", "ADMIN"),
-    "DELETE": ("ADMIN",),
+    "DELETE": ("MANAGER", "ADMIN"),
 }
 
 

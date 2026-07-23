@@ -38,7 +38,7 @@ PERMISSIONS = {
     "OPTIONS": ("VIEWER", "CONTRIBUTOR", "MANAGER", "ADMIN"),
     "POST": ("MANAGER", "ADMIN"),
     "PUT": ("CONTRIBUTOR", "MANAGER", "ADMIN"),
-    "DELETE": ("ADMIN",),
+    "DELETE": ("MANAGER", "ADMIN"),
 }
 
 

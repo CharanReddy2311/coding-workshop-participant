@@ -38,6 +38,19 @@ vi.mock('../services/directoryService', () => ({
   fetchDepartments: (...args) => mockFetchDepartments(...args),
   fetchUsers: (...args) => mockFetchUsers(...args),
 }))
+// Stub the form dialog so the page's own openCreate/openEdit/handleSaved/onClose
+// handlers can be exercised without mounting the real dialog (which needs the
+// x-date-pickers LocalizationProvider). The real dialog has its own test file.
+vi.mock('../components/ProjectFormDialog', () => ({
+  default: ({ open, project, onClose, onSaved }) =>
+    open ? (
+      <div>
+        <p>{`stub-dialog:${project ? 'edit' : 'create'}`}</p>
+        <button onClick={() => onSaved({ id: 'p9', name: 'Saved Project', code: 'PR99' })}>stub-save</button>
+        <button onClick={onClose}>stub-close</button>
+      </div>
+    ) : null,
+}))
 
 const SAMPLE_PROJECTS = [
   {
@@ -164,7 +177,7 @@ describe('RBAC-gated actions', () => {
     expect(deleteButton).toBeDisabled()
   })
 
-  it('enables Create for a Manager but not Delete', async () => {
+  it('enables Create and Delete for a Manager', async () => {
     authAs('MANAGER')
     renderProjects()
     await screen.findByText('PR01 — Expense Tracker')
@@ -172,7 +185,7 @@ describe('RBAC-gated actions', () => {
     expect(screen.getByRole('button', { name: /create project/i })).toBeEnabled()
     const firstRow = screen.getAllByRole('row')[1]
     const [, deleteButton] = within(firstRow).getAllByRole('button')
-    expect(deleteButton).toBeDisabled()
+    expect(deleteButton).toBeEnabled()
   })
 
   it('enables every action for an Admin', async () => {
@@ -219,5 +232,62 @@ describe('delete flow', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Delete' }))
 
     expect(await screen.findByText('Cannot delete project Remove its deliverables first.')).toBeInTheDocument()
+  })
+})
+
+describe('dialog interactions', () => {
+  it('opens the create dialog', async () => {
+    renderProjects()
+    await screen.findByText('PR01 — Expense Tracker')
+    await userEvent.click(screen.getByRole('button', { name: /create project/i }))
+    expect(screen.getByText('stub-dialog:create')).toBeInTheDocument()
+  })
+
+  it('opens the edit dialog for a row', async () => {
+    renderProjects()
+    await screen.findByText('PR01 — Expense Tracker')
+    const firstRow = screen.getAllByRole('row')[1]
+    const [editButton] = within(firstRow).getAllByRole('button')
+    await userEvent.click(editButton)
+    expect(screen.getByText('stub-dialog:edit')).toBeInTheDocument()
+  })
+
+  it('shows a snackbar and refetches after a save', async () => {
+    renderProjects()
+    await screen.findByText('PR01 — Expense Tracker')
+    expect(mockListProjects).toHaveBeenCalledTimes(1)
+    await userEvent.click(screen.getByRole('button', { name: /create project/i }))
+    await userEvent.click(screen.getByRole('button', { name: 'stub-save' }))
+    expect(await screen.findByText('Project "Saved Project" created')).toBeInTheDocument()
+    await waitFor(() => expect(mockListProjects).toHaveBeenCalledTimes(2))
+  })
+
+  it('closes the dialog without saving', async () => {
+    renderProjects()
+    await screen.findByText('PR01 — Expense Tracker')
+    await userEvent.click(screen.getByRole('button', { name: /create project/i }))
+    await userEvent.click(screen.getByRole('button', { name: 'stub-close' }))
+    expect(screen.queryByText('stub-dialog:create')).not.toBeInTheDocument()
+  })
+})
+
+describe('pagination and delete-cancel', () => {
+  it('requests the next page of results', async () => {
+    mockListProjects.mockResolvedValue({ projects: SAMPLE_PROJECTS, meta: { total: 100, limit: 10, offset: 0 } })
+    renderProjects()
+    await screen.findByText('PR01 — Expense Tracker')
+    await userEvent.click(screen.getByRole('button', { name: /go to next page/i }))
+    await waitFor(() => expect(mockListProjects).toHaveBeenCalledWith(expect.objectContaining({ offset: 10 })))
+  })
+
+  it('cancels the delete confirmation', async () => {
+    renderProjects()
+    await screen.findByText('PR01 — Expense Tracker')
+    const firstRow = screen.getAllByRole('row')[1]
+    const [, deleteButton] = within(firstRow).getAllByRole('button')
+    await userEvent.click(deleteButton)
+    expect(await screen.findByText('Delete project?')).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+    await waitFor(() => expect(screen.queryByText('Delete project?')).not.toBeInTheDocument())
   })
 })

@@ -51,6 +51,19 @@ vi.mock('../services/projectService', () => ({
 
 const today = new Date().toISOString().slice(0, 10)
 
+// Stub the form dialog so the page's own open/save/close handlers run without
+// mounting the real dialog (covered by its own test file).
+vi.mock('../components/DeliverableFormDialog', () => ({
+  default: ({ open, deliverable, onClose, onSaved }) =>
+    open ? (
+      <div>
+        <p>{`stub-dialog:${deliverable ? 'edit' : 'create'}`}</p>
+        <button onClick={() => onSaved({ id: 'd9', name: 'Saved Deliverable' })}>stub-save</button>
+        <button onClick={onClose}>stub-close</button>
+      </div>
+    ) : null,
+}))
+
 const SAMPLE_DELIVERABLES = [
   {
     id: 'd1',
@@ -221,5 +234,58 @@ describe('delete flow', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Delete' }))
 
     expect(await screen.findByText('Failed to delete deliverable')).toBeInTheDocument()
+  })
+})
+
+describe('dialog interactions', () => {
+  it('opens the create dialog', async () => {
+    renderDeliverables()
+    await screen.findByText('Design Doc')
+    await userEvent.click(screen.getByRole('button', { name: /create deliverable/i }))
+    expect(screen.getByText('stub-dialog:create')).toBeInTheDocument()
+  })
+
+  it('opens the edit dialog for a row', async () => {
+    renderDeliverables()
+    await screen.findByText('Design Doc')
+    const [editButton] = within(screen.getAllByRole('row')[1]).getAllByRole('button')
+    await userEvent.click(editButton)
+    expect(screen.getByText('stub-dialog:edit')).toBeInTheDocument()
+  })
+
+  it('shows a snackbar after saving from the dialog', async () => {
+    renderDeliverables()
+    await screen.findByText('Design Doc')
+    await userEvent.click(screen.getByRole('button', { name: /create deliverable/i }))
+    await userEvent.click(screen.getByRole('button', { name: 'stub-save' }))
+    expect(await screen.findByText('Deliverable "Saved Deliverable" created')).toBeInTheDocument()
+  })
+
+  it('closes the dialog without saving', async () => {
+    renderDeliverables()
+    await screen.findByText('Design Doc')
+    await userEvent.click(screen.getByRole('button', { name: /create deliverable/i }))
+    await userEvent.click(screen.getByRole('button', { name: 'stub-close' }))
+    expect(screen.queryByText('stub-dialog:create')).not.toBeInTheDocument()
+  })
+})
+
+describe('pagination and delete-cancel', () => {
+  it('requests the next page of results', async () => {
+    mockListDeliverables.mockResolvedValue({ deliverables: SAMPLE_DELIVERABLES, meta: { total: 100, limit: 10, offset: 0 } })
+    renderDeliverables()
+    await screen.findByText('Design Doc')
+    await userEvent.click(screen.getByRole('button', { name: /go to next page/i }))
+    await waitFor(() => expect(mockListDeliverables).toHaveBeenCalledWith(expect.objectContaining({ offset: 10 })))
+  })
+
+  it('cancels the delete confirmation', async () => {
+    renderDeliverables()
+    await screen.findByText('Design Doc')
+    const [, deleteButton] = within(screen.getAllByRole('row')[1]).getAllByRole('button')
+    await userEvent.click(deleteButton)
+    expect(await screen.findByText('Delete deliverable?')).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+    await waitFor(() => expect(screen.queryByText('Delete deliverable?')).not.toBeInTheDocument())
   })
 })

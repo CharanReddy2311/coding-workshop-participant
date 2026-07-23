@@ -1,5 +1,5 @@
-import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
+import { configDefaults, defineConfig } from 'vitest/config'
 
 // https://vite.dev/config/
 export default defineConfig({
@@ -11,6 +11,8 @@ export default defineConfig({
     environment: 'jsdom',
     setupFiles: ['./src/setupTests.js'],
     css: false,
+    // Playwright E2E specs live in e2e/ and must not be run by Vitest.
+    exclude: [...configDefaults.exclude, 'e2e/**'],
     // v8 coverage instrumentation adds real per-statement overhead — the
     // default 5000ms is too tight for MUI-heavy dialog tests once coverage
     // is on, even though the same tests run in well under 1s without it.

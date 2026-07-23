@@ -39,6 +39,19 @@ vi.mock('../services/projectService', () => ({
 
 const today = new Date().toISOString().slice(0, 10)
 
+// Stub the form dialog so the page's own open/save/close handlers run without
+// mounting the real dialog (covered by its own test file).
+vi.mock('../components/AllocationFormDialog', () => ({
+  default: ({ open, allocation, onClose, onSaved }) =>
+    open ? (
+      <div>
+        <p>{`stub-dialog:${allocation ? 'edit' : 'create'}`}</p>
+        <button onClick={() => onSaved({ id: 'a9' })}>stub-save</button>
+        <button onClick={onClose}>stub-close</button>
+      </div>
+    ) : null,
+}))
+
 const SAMPLE_ALLOCATIONS = [
   {
     id: 'a1',
@@ -202,5 +215,58 @@ describe('delete flow', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Delete' }))
 
     expect(await screen.findByText('Failed to delete allocation')).toBeInTheDocument()
+  })
+})
+
+describe('dialog interactions', () => {
+  it('opens the create dialog', async () => {
+    renderAllocations()
+    await screen.findByText('Ada Lovelace')
+    await userEvent.click(screen.getByRole('button', { name: /create allocation/i }))
+    expect(screen.getByText('stub-dialog:create')).toBeInTheDocument()
+  })
+
+  it('opens the edit dialog for a row', async () => {
+    renderAllocations()
+    await screen.findByText('Ada Lovelace')
+    const [editButton] = within(screen.getAllByRole('row')[1]).getAllByRole('button')
+    await userEvent.click(editButton)
+    expect(screen.getByText('stub-dialog:edit')).toBeInTheDocument()
+  })
+
+  it('shows a snackbar after saving from the dialog', async () => {
+    renderAllocations()
+    await screen.findByText('Ada Lovelace')
+    await userEvent.click(screen.getByRole('button', { name: /create allocation/i }))
+    await userEvent.click(screen.getByRole('button', { name: 'stub-save' }))
+    expect(await screen.findByText('Allocation created')).toBeInTheDocument()
+  })
+
+  it('closes the dialog without saving', async () => {
+    renderAllocations()
+    await screen.findByText('Ada Lovelace')
+    await userEvent.click(screen.getByRole('button', { name: /create allocation/i }))
+    await userEvent.click(screen.getByRole('button', { name: 'stub-close' }))
+    expect(screen.queryByText('stub-dialog:create')).not.toBeInTheDocument()
+  })
+})
+
+describe('pagination and delete-cancel', () => {
+  it('requests the next page of results', async () => {
+    mockListAllocations.mockResolvedValue({ allocations: SAMPLE_ALLOCATIONS, meta: { total: 100, limit: 10, offset: 0 } })
+    renderAllocations()
+    await screen.findByText('Ada Lovelace')
+    await userEvent.click(screen.getByRole('button', { name: /go to next page/i }))
+    await waitFor(() => expect(mockListAllocations).toHaveBeenCalledWith(expect.objectContaining({ offset: 10 })))
+  })
+
+  it('cancels the delete confirmation', async () => {
+    renderAllocations()
+    await screen.findByText('Ada Lovelace')
+    const [, deleteButton] = within(screen.getAllByRole('row')[1]).getAllByRole('button')
+    await userEvent.click(deleteButton)
+    expect(await screen.findByText('Delete allocation?')).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+    await waitFor(() => expect(screen.queryByText('Delete allocation?')).not.toBeInTheDocument())
   })
 })

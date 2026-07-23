@@ -242,9 +242,9 @@ class TestRBAC:
 
     @pytest.mark.parametrize(
         "role,expected_status",
-        [("VIEWER", 403), ("CONTRIBUTOR", 403), ("MANAGER", 403), ("ADMIN", 204)],
+        [("VIEWER", 403), ("CONTRIBUTOR", 403), ("MANAGER", 204), ("ADMIN", 204)],
     )
-    def test_delete_requires_admin(self, deliverables, make_event, make_token, mock_repo, role, expected_status):
+    def test_delete_requires_manager_or_above(self, deliverables, make_event, make_token, mock_repo, role, expected_status):
         event = make_event("DELETE", f"/api/deliverables-service/{DELIVERABLE_ID}", token=make_token(role))
         result = deliverables.function.handler(event, {})
         assert result["statusCode"] == expected_status

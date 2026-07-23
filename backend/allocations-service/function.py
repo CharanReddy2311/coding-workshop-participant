@@ -6,11 +6,15 @@
     PUT    /api/allocations-service/{id}   update
     DELETE /api/allocations-service/{id}   delete
 
-Over-allocation is enforced on every create and update: the sum of
-allocation_pct across every allocation whose date range overlaps the one
-being written can never exceed 100 for a given user. This is exactly the
-"who is over-allocated in this window" query idx_allocations_user_period
-(a GiST index on (user_id, period), see schema.sql) was built to make cheap.
+Over-allocation is enforced on every create and update: a user's peak
+*concurrent* allocation_pct on any single day can never exceed 100. That peak
+is a sweep line over the overlapping allocations (repository.peak_existing_pct),
+not a naive sum of every overlapping row — two allocations that overlap the new
+window but not each other are never counted together. The authoritative check
+runs inside the write transaction behind a per-user advisory lock, so two
+concurrent writers for the same user cannot both pass and then both write.
+The idx_allocations_user_period GiST index (see schema.sql) keeps the overlap
+lookup cheap.
 """
 
 import logging
@@ -40,13 +44,13 @@ logger.setLevel(logging.INFO)
 SERVICE_NAME = "allocations-service"
 SUPPORTED_METHODS = ("GET", "POST", "PUT", "DELETE", "OPTIONS")
 
-# Viewers read; Contributors and Managers create/edit; only Admins delete.
+# Viewers read; Contributors and Managers create/edit; Managers and Admins delete.
 PERMISSIONS = {
     "GET": ("VIEWER", "CONTRIBUTOR", "MANAGER", "ADMIN"),
     "OPTIONS": ("VIEWER", "CONTRIBUTOR", "MANAGER", "ADMIN"),
     "POST": ("CONTRIBUTOR", "MANAGER", "ADMIN"),
     "PUT": ("CONTRIBUTOR", "MANAGER", "ADMIN"),
-    "DELETE": ("ADMIN",),
+    "DELETE": ("MANAGER", "ADMIN"),
 }
 
 
@@ -62,9 +66,16 @@ def _check_references(data):
 
 
 def _check_overlap(merged, exclude_id=None):
-    """Reject if this allocation would push the user over 100% for any
-    date the new/updated period overlaps."""
-    existing_pct = repository.overlapping_pct(
+    """Reject if this allocation would push the user over 100% for any single
+    day the new/updated period covers.
+
+    This is a fail-fast, friendly pre-check using the peak *concurrent* load
+    (not a naive sum of every overlapping row). The authoritative, race-free
+    enforcement runs inside the write transaction in repository.py behind a
+    per-user advisory lock; this pre-check just lets the common case fail with
+    a clear message before a transaction is opened.
+    """
+    existing_pct = repository.peak_existing_pct(
         merged["user_id"], merged["start_date"], merged["end_date"], exclude_id=exclude_id
     )
     projected = existing_pct + merged["allocation_pct"]

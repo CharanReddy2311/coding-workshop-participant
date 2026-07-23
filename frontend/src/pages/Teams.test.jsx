@@ -38,6 +38,19 @@ vi.mock('../services/teamService', () => ({
   fetchUsers: (...args) => mockFetchUsers(...args),
 }))
 
+// Stub the form dialog so the page's own open/save/close handlers run without
+// mounting the real dialog (covered by its own test file).
+vi.mock('../components/TeamFormDialog', () => ({
+  default: ({ open, team, onClose, onSaved }) =>
+    open ? (
+      <div>
+        <p>{`stub-dialog:${team ? 'edit' : 'create'}`}</p>
+        <button onClick={() => onSaved({ id: 't9', name: 'Saved Team' })}>stub-save</button>
+        <button onClick={onClose}>stub-close</button>
+      </div>
+    ) : null,
+}))
+
 const SAMPLE_TEAMS = [
   {
     id: 't1',
@@ -163,7 +176,7 @@ describe('RBAC-gated actions', () => {
     expect(deleteButton).toBeDisabled()
   })
 
-  it('allows creating and editing but not deleting for a Manager', async () => {
+  it('allows creating, editing, and deleting for a Manager', async () => {
     authAs('MANAGER')
     renderTeams()
     await screen.findByText('Platform Engineering')
@@ -172,7 +185,7 @@ describe('RBAC-gated actions', () => {
     const firstRow = screen.getAllByRole('row')[1]
     const [editButton, deleteButton] = within(firstRow).getAllByRole('button')
     expect(editButton).toBeEnabled()
-    expect(deleteButton).toBeDisabled()
+    expect(deleteButton).toBeEnabled()
   })
 
   it('enables every action for an Admin', async () => {
@@ -220,5 +233,58 @@ describe('delete flow', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Delete' }))
 
     expect(await screen.findByText('Failed to delete team')).toBeInTheDocument()
+  })
+})
+
+describe('dialog interactions', () => {
+  it('opens the create dialog', async () => {
+    renderTeams()
+    await screen.findByText('Platform Engineering')
+    await userEvent.click(screen.getByRole('button', { name: /create team/i }))
+    expect(screen.getByText('stub-dialog:create')).toBeInTheDocument()
+  })
+
+  it('opens the edit dialog for a row', async () => {
+    renderTeams()
+    await screen.findByText('Platform Engineering')
+    const [editButton] = within(screen.getAllByRole('row')[1]).getAllByRole('button')
+    await userEvent.click(editButton)
+    expect(screen.getByText('stub-dialog:edit')).toBeInTheDocument()
+  })
+
+  it('shows a snackbar after saving from the dialog', async () => {
+    renderTeams()
+    await screen.findByText('Platform Engineering')
+    await userEvent.click(screen.getByRole('button', { name: /create team/i }))
+    await userEvent.click(screen.getByRole('button', { name: 'stub-save' }))
+    expect(await screen.findByText('Team "Saved Team" created')).toBeInTheDocument()
+  })
+
+  it('closes the dialog without saving', async () => {
+    renderTeams()
+    await screen.findByText('Platform Engineering')
+    await userEvent.click(screen.getByRole('button', { name: /create team/i }))
+    await userEvent.click(screen.getByRole('button', { name: 'stub-close' }))
+    expect(screen.queryByText('stub-dialog:create')).not.toBeInTheDocument()
+  })
+})
+
+describe('pagination and delete-cancel', () => {
+  it('requests the next page of results', async () => {
+    mockListTeams.mockResolvedValue({ teams: SAMPLE_TEAMS, meta: { total: 100, limit: 10, offset: 0 } })
+    renderTeams()
+    await screen.findByText('Platform Engineering')
+    await userEvent.click(screen.getByRole('button', { name: /go to next page/i }))
+    await waitFor(() => expect(mockListTeams).toHaveBeenCalledWith(expect.objectContaining({ offset: 10 })))
+  })
+
+  it('cancels the delete confirmation', async () => {
+    renderTeams()
+    await screen.findByText('Platform Engineering')
+    const [, deleteButton] = within(screen.getAllByRole('row')[1]).getAllByRole('button')
+    await userEvent.click(deleteButton)
+    expect(await screen.findByText('Delete team?')).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+    await waitFor(() => expect(screen.queryByText('Delete team?')).not.toBeInTheDocument())
   })
 })

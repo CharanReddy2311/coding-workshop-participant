@@ -56,7 +56,7 @@ def mock_repo(allocations, monkeypatch):
         "get_allocation": MagicMock(return_value=VALID_ALLOCATION_ROW),
         # No overlapping allocations by default — individual tests override
         # this to land on a specific boundary.
-        "overlapping_pct": MagicMock(return_value=0),
+        "peak_existing_pct": MagicMock(return_value=0),
         "create_allocation": MagicMock(return_value={"id": ALLOCATION_ID}),
         "update_allocation": MagicMock(return_value={"id": ALLOCATION_ID}),
         "delete_allocation": MagicMock(return_value={"id": ALLOCATION_ID}),
@@ -86,7 +86,7 @@ class TestOverAllocationBoundary:
     def test_at_or_under_100_percent_is_allowed(
         self, allocations, make_event, make_token, mock_repo, existing_pct, requested_pct
     ):
-        mock_repo["overlapping_pct"].return_value = existing_pct
+        mock_repo["peak_existing_pct"].return_value = existing_pct
         body = {**VALID_PAYLOAD, "allocation_pct": requested_pct}
         event = make_event("POST", "/api/allocations-service", body=body, token=make_token("MANAGER"))
         result = allocations.function.handler(event, {})
@@ -96,7 +96,7 @@ class TestOverAllocationBoundary:
     def test_over_100_percent_is_rejected_with_409(
         self, allocations, make_event, make_token, mock_repo, existing_pct, requested_pct
     ):
-        mock_repo["overlapping_pct"].return_value = existing_pct
+        mock_repo["peak_existing_pct"].return_value = existing_pct
         body = {**VALID_PAYLOAD, "allocation_pct": requested_pct}
         event = make_event("POST", "/api/allocations-service", body=body, token=make_token("MANAGER"))
         result = allocations.function.handler(event, {})
@@ -112,10 +112,10 @@ class TestOverAllocationBoundary:
         event = make_event("POST", "/api/allocations-service", body=body, token=make_token("MANAGER"))
         result = allocations.function.handler(event, {})
         assert result["statusCode"] == 400
-        mock_repo["overlapping_pct"].assert_not_called()
+        mock_repo["peak_existing_pct"].assert_not_called()
 
     def test_conflict_response_reports_exact_numbers(self, allocations, make_event, make_token, mock_repo):
-        mock_repo["overlapping_pct"].return_value = 60
+        mock_repo["peak_existing_pct"].return_value = 60
         body = {**VALID_PAYLOAD, "allocation_pct": 50}
         event = make_event("POST", "/api/allocations-service", body=body, token=make_token("MANAGER"))
         result = allocations.function.handler(event, {})
@@ -134,15 +134,15 @@ class TestUpdatePathExclusion:
     def test_create_does_not_exclude_any_row(self, allocations, make_event, make_token, mock_repo):
         event = make_event("POST", "/api/allocations-service", body=VALID_PAYLOAD, token=make_token("MANAGER"))
         allocations.function.handler(event, {})
-        mock_repo["overlapping_pct"].assert_called_once()
-        assert mock_repo["overlapping_pct"].call_args.kwargs.get("exclude_id") is None
+        mock_repo["peak_existing_pct"].assert_called_once()
+        assert mock_repo["peak_existing_pct"].call_args.kwargs.get("exclude_id") is None
 
     def test_update_excludes_its_own_row_from_the_overlap_sum(self, allocations, make_event, make_token, mock_repo):
         # Zero *other* overlapping allocations once this row's own prior
         # value is excluded. Without exclusion, saving the same allocation
         # back would double-count it against itself and could be wrongly
         # rejected as over 100%.
-        mock_repo["overlapping_pct"].return_value = 0
+        mock_repo["peak_existing_pct"].return_value = 0
         event = make_event(
             "PUT",
             f"/api/allocations-service/{ALLOCATION_ID}",
@@ -151,12 +151,12 @@ class TestUpdatePathExclusion:
         )
         result = allocations.function.handler(event, {})
         assert result["statusCode"] == 200, result["body"]
-        assert mock_repo["overlapping_pct"].call_args.kwargs.get("exclude_id") == ALLOCATION_ID
+        assert mock_repo["peak_existing_pct"].call_args.kwargs.get("exclude_id") == ALLOCATION_ID
 
     def test_update_still_rejects_genuine_over_allocation(self, allocations, make_event, make_token, mock_repo):
         # Excluding this row's own 60% still leaves 80% from *other*
         # allocations — raising this row to 30% would total 110%.
-        mock_repo["overlapping_pct"].return_value = 80
+        mock_repo["peak_existing_pct"].return_value = 80
         event = make_event(
             "PUT",
             f"/api/allocations-service/{ALLOCATION_ID}",
@@ -177,7 +177,7 @@ class TestUpdatePathExclusion:
             token=make_token("CONTRIBUTOR"),
         )
         allocations.function.handler(event, {})
-        args, _ = mock_repo["overlapping_pct"].call_args
+        args, _ = mock_repo["peak_existing_pct"].call_args
         assert args[0] == VALID_ALLOCATION_ROW["user_id"]
         assert args[1] == VALID_ALLOCATION_ROW["start_date"]
         assert args[2] == VALID_ALLOCATION_ROW["end_date"]
@@ -191,7 +191,7 @@ class TestDateOrdering:
         assert result["statusCode"] == 400
         payload = json.loads(result["body"])
         assert payload["error"]["details"]["end_date"] == "must be on or after the start date"
-        mock_repo["overlapping_pct"].assert_not_called()
+        mock_repo["peak_existing_pct"].assert_not_called()
 
     def test_end_equal_to_start_is_allowed(self, allocations, make_event, make_token, mock_repo):
         """A single-day allocation (end == start) is a boundary, not a
@@ -237,9 +237,9 @@ class TestRBAC:
 
     @pytest.mark.parametrize(
         "role,expected_status",
-        [("VIEWER", 403), ("CONTRIBUTOR", 403), ("MANAGER", 403), ("ADMIN", 204)],
+        [("VIEWER", 403), ("CONTRIBUTOR", 403), ("MANAGER", 204), ("ADMIN", 204)],
     )
-    def test_delete_requires_admin(self, allocations, make_event, make_token, mock_repo, role, expected_status):
+    def test_delete_requires_manager_or_above(self, allocations, make_event, make_token, mock_repo, role, expected_status):
         event = make_event("DELETE", f"/api/allocations-service/{ALLOCATION_ID}", token=make_token(role))
         result = allocations.function.handler(event, {})
         assert result["statusCode"] == expected_status
@@ -275,7 +275,7 @@ class TestValidationAndReferences:
         result = allocations.function.handler(event, {})
         assert result["statusCode"] == 400
         assert json.loads(result["body"])["error"]["details"]["user_id"] == "no user exists with this id"
-        mock_repo["overlapping_pct"].assert_not_called()
+        mock_repo["peak_existing_pct"].assert_not_called()
 
     def test_unknown_project_returns_400(self, allocations, make_event, make_token, mock_repo):
         mock_repo["exists"].side_effect = lambda table, _id: table != "projects"

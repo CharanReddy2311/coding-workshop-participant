@@ -1,0 +1,128 @@
+name: Tests - Backend, Frontend & E2E
+
+on: [pull_request, push]
+
+jobs:
+  backend:
+    name: Backend unit tests (pytest)
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+
+    steps:
+      - name: Setup GitHub Actions
+        uses: actions/checkout@master
+
+      - name: Install Python
+        uses: actions/setup-python@master
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip3 install pytest pg8000==1.31.5 PyJWT==2.10.1
+
+      # The suite mocks every database call, so no PostgreSQL is required here.
+      - name: Run backend tests
+        working-directory: ./backend
+        run: python -m pytest -q
+
+  frontend:
+    name: Frontend lint + unit tests (Vitest)
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+
+    steps:
+      - name: Setup GitHub Actions
+        uses: actions/checkout@master
+
+      - name: Setup Node.js
+        uses: actions/setup-node@master
+        with:
+          node-version: '24'
+
+      # package-lock.json is intentionally untracked (see bin/start-dev.sh),
+      # so `npm install` is used rather than `npm ci`.
+      - name: Install npm dependencies
+        run: npm install --prefix ./frontend
+
+      - name: Run ESLint
+        run: npm run lint --prefix ./frontend
+
+      - name: Run unit tests with coverage
+        run: npm run test:coverage --prefix ./frontend
+
+  e2e:
+    name: End-to-end tests (Playwright)
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: test
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      CI: '1'
+      POSTGRES_HOST: localhost
+      POSTGRES_PORT: '5432'
+      POSTGRES_USER: test
+      POSTGRES_PASS: test
+      POSTGRES_NAME: test
+
+    steps:
+      - name: Setup GitHub Actions
+        uses: actions/checkout@master
+
+      - name: Setup Node.js
+        uses: actions/setup-node@master
+        with:
+          node-version: '24'
+
+      - name: Install Python
+        uses: actions/setup-python@master
+        with:
+          python-version: '3.11'
+
+      # psql is used by the Playwright globalSetup to apply the schema + seed.
+      - name: Install PostgreSQL client
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client
+
+      # The backend that Playwright's webServer starts imports these.
+      - name: Install backend dependencies
+        run: pip3 install pg8000==1.31.5 PyJWT==2.10.1
+
+      - name: Install npm dependencies
+        run: npm install --prefix ./frontend
+
+      - name: Install Playwright browser
+        run: npx playwright install --with-deps chromium
+        working-directory: ./frontend
+
+      # playwright.config.js boots the frontend (:3000) and backend (:3001) and
+      # its globalSetup migrates + seeds the database, so this is self-contained.
+      - name: Run E2E tests
+        working-directory: ./frontend
+        run: npm run test:e2e
+
+      - name: Upload Playwright report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: frontend/test-results/
+          retention-days: 7

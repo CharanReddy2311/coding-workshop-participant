@@ -40,6 +40,7 @@ import {
 import AppLayout from '../components/AppLayout'
 import { useAuth } from '../context/AuthContext'
 import { listAllocations } from '../services/allocationService'
+import { getBudgetSummary } from '../services/budgetService'
 import { listDeliverables } from '../services/deliverableService'
 import { listProjects } from '../services/projectService'
 
@@ -116,6 +117,7 @@ export default function Dashboard() {
   const [projects, setProjects] = useState([])
   const [deliverables, setDeliverables] = useState([])
   const [allocations, setAllocations] = useState([])
+  const [budgetSummary, setBudgetSummary] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
@@ -126,15 +128,17 @@ export default function Dashboard() {
       setLoading(true)
       setError('')
       try {
-        const [projectsRes, deliverablesRes, allocationsRes] = await Promise.all([
+        const [projectsRes, deliverablesRes, allocationsRes, budgetRes] = await Promise.all([
           listProjects({ limit: 200, sort: 'name', order: 'asc' }),
           listDeliverables({ limit: 500 }),
           listAllocations({ limit: 500 }),
+          getBudgetSummary(),
         ])
         if (cancelled) return
         setProjects(projectsRes.projects)
         setDeliverables(deliverablesRes.deliverables)
         setAllocations(allocationsRes.allocations)
+        setBudgetSummary(budgetRes)
       } catch (err) {
         if (!cancelled) setError(err.message || 'Failed to load dashboard data')
       } finally {
@@ -208,20 +212,19 @@ export default function Dashboard() {
     [allocationByUser],
   )
 
-  const activeProjectsWithProgress = useMemo(() => {
-    return projects
-      .filter((p) => p.status === 'ACTIVE')
-      .map((p) => {
-        const projectDeliverables = deliverablesByProject.get(p.id) || []
-        const totalWeight = projectDeliverables.reduce((sum, d) => sum + (Number(d.weight) || 0), 0)
-        const weightedComplete = projectDeliverables.reduce(
-          (sum, d) => sum + (Number(d.weight) || 0) * (Number(d.percent_complete) || 0),
-          0,
-        )
-        const estimatedPct = totalWeight > 0 ? Math.round(weightedComplete / totalWeight) : 0
-        return { project: p, estimatedPct }
-      })
-  }, [projects, deliverablesByProject])
+  // Real consumed-vs-planned from budget-service: every project carrying a
+  // planned budget or any recorded spend, worst-consumed first so the projects
+  // closest to (or over) their budget surface at the top.
+  const budgetRows = useMemo(() => {
+    return budgetSummary
+      .filter((row) => Number(row.planned_budget) > 0 || Number(row.consumed) > 0)
+      .sort((a, b) => (b.consumed_pct ?? 0) - (a.consumed_pct ?? 0))
+  }, [budgetSummary])
+
+  const overBudgetCount = useMemo(
+    () => budgetSummary.filter((row) => row.over_budget).length,
+    [budgetSummary],
+  )
 
   const deliverableStatusCounts = useMemo(() => {
     const counts = { NOT_STARTED: 0, IN_PROGRESS: 0, BLOCKED: 0, COMPLETED: 0, CANCELLED: 0 }
@@ -428,37 +431,45 @@ export default function Dashboard() {
                 </WidgetCard>
               </Grid>
 
-              {/* 4. Budget vs Planned */}
+              {/* 4. Budget vs Planned — real consumed vs planned from budget-service */}
               <Grid size={{ xs: 12, lg: 6 }}>
                 <WidgetCard
                   title="Budget vs Planned"
-                  subtitle="Estimated consumption based on deliverable progress — actual spend isn't tracked yet, so this is a progress-based estimate, not real cost data"
+                  subtitle={
+                    overBudgetCount > 0
+                      ? `Actual expenses against each project's planned budget — ${overBudgetCount} over budget`
+                      : "Actual expenses recorded against each project's planned budget"
+                  }
                 >
-                  {activeProjectsWithProgress.length === 0 ? (
+                  {budgetRows.length === 0 ? (
                     <Typography variant="body2" color="text.secondary">
-                      No active projects.
+                      No budget data yet.
                     </Typography>
                   ) : (
                     <Stack spacing={2}>
-                      {activeProjectsWithProgress.map(({ project, estimatedPct }) => (
-                        <Box key={project.id}>
-                          <Stack direction="row" sx={{ justifyContent: 'space-between', mb: 0.5 }}>
-                            <Typography variant="body2" fontWeight={600}>
-                              {project.code} — {project.name}
-                            </Typography>
-                            <Typography variant="body2" color="text.secondary">
-                              ~${Math.round((project.planned_budget * estimatedPct) / 100).toLocaleString()} of $
-                              {Number(project.planned_budget).toLocaleString()} ({estimatedPct}%)
-                            </Typography>
-                          </Stack>
-                          <LinearProgress
-                            variant="determinate"
-                            value={Math.min(estimatedPct, 100)}
-                            color={estimatedPct > 90 ? 'warning' : 'primary'}
-                            sx={{ height: 8, borderRadius: 1 }}
-                          />
-                        </Box>
-                      ))}
+                      {budgetRows.map((row) => {
+                        const pct = row.consumed_pct ?? 0
+                        const barColor = row.over_budget ? 'error' : pct > 90 ? 'warning' : 'primary'
+                        return (
+                          <Box key={row.project_id}>
+                            <Stack direction="row" sx={{ justifyContent: 'space-between', mb: 0.5 }}>
+                              <Typography variant="body2" fontWeight={600}>
+                                {row.project_code} — {row.project_name}
+                              </Typography>
+                              <Typography variant="body2" color={row.over_budget ? 'error' : 'text.secondary'}>
+                                ${Number(row.consumed).toLocaleString()} of ${Number(row.planned_budget).toLocaleString()}
+                                {row.consumed_pct != null ? ` (${row.consumed_pct}%)` : ''}
+                              </Typography>
+                            </Stack>
+                            <LinearProgress
+                              variant="determinate"
+                              value={Math.min(pct, 100)}
+                              color={barColor}
+                              sx={{ height: 8, borderRadius: 1 }}
+                            />
+                          </Box>
+                        )
+                      })}
                     </Stack>
                   )}
                 </WidgetCard>
@@ -502,7 +513,7 @@ export default function Dashboard() {
 
             <Divider />
             <Typography variant="caption" color="text.secondary">
-              Data refreshes on page load. Figures are computed from the Projects, Deliverables, and Allocations
+              Data refreshes on page load. Figures are computed from the Projects, Deliverables, Allocations, and Budget
               services.
             </Typography>
           </Stack>

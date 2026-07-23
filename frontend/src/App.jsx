@@ -9,7 +9,6 @@ import theme from './theme'
 import Allocations from './pages/Allocations'
 import Dashboard from './pages/Dashboard'
 import Deliverables from './pages/Deliverables'
-import ForgotPassword from './pages/ForgotPassword'
 import Login from './pages/Login'
 import Projects from './pages/Projects'
 import Teams from './pages/Teams'
@@ -23,7 +22,6 @@ export default function App() {
           <AuthProvider>
             <Routes>
               <Route path="/login" element={<Login />} />
-              <Route path="/forgot-password" element={<ForgotPassword />} />
               <Route
                 path="/"
                 element={

@@ -68,7 +68,7 @@ export default function Deliverables() {
   // for both create and edit, Admin only for delete.
   const canCreate = hasRole('CONTRIBUTOR')
   const canEdit = hasRole('CONTRIBUTOR')
-  const canDelete = hasRole('ADMIN')
+  const canDelete = hasRole('MANAGER')
 
   const [deliverables, setDeliverables] = useState([])
   const [meta, setMeta] = useState({ total: 0 })
@@ -346,7 +346,7 @@ export default function Deliverables() {
                             </IconButton>
                           </span>
                         </Tooltip>
-                        <Tooltip title={canDelete ? 'Delete' : 'Requires the Admin role'}>
+                        <Tooltip title={canDelete ? 'Delete' : 'Requires the Manager role'}>
                           <span>
                             <IconButton
                               size="small"
