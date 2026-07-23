@@ -13,18 +13,25 @@ import decimal
 import pytest
 
 
-@pytest.fixture(params=["teams-service", "allocations-service"])
+@pytest.fixture(params=["teams-service", "allocations-service", "projects-service", "deliverables-service", "directory-service"])
 def shared(request, load_service):
     return load_service(request.param)
 
 
 @pytest.fixture
 def val(shared):
-    """The _shared.validation module itself, imported the same way every
-    service imports it."""
-    import sys
+    """The _shared.validation module itself. Most services import it as a
+    side effect of loading function.py, but directory-service doesn't (it
+    has no create/update endpoints), so it's never in sys.modules purely
+    from load_service() — import it explicitly instead. _shared is already
+    cached with its __path__ pointing at this service's own copy (set when
+    load_service() imported _shared.auth/.http/.db), so this still resolves
+    to the right vendored file even though the service dir is no longer on
+    sys.path at this point.
+    """
+    import importlib
 
-    return sys.modules["_shared.validation"]
+    return importlib.import_module("_shared.validation")
 
 
 class TestFieldTypeString:

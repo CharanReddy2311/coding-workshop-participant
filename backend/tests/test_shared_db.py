@@ -15,7 +15,7 @@ from unittest.mock import MagicMock
 import pytest
 
 
-@pytest.fixture(params=["teams-service", "allocations-service"])
+@pytest.fixture(params=["teams-service", "allocations-service", "projects-service", "deliverables-service", "directory-service"])
 def shared(request, load_service):
     """Parametrized across every service in scope so this suite actually
     exercises each one's own vendored _shared/db.py copy — coverage.py
