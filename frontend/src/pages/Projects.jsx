@@ -63,6 +63,12 @@ function isOverdue(project) {
   return OPEN_STATUSES.includes(project.status) && project.planned_end < today
 }
 
+// This table has 8 columns — too many for a phone. Drop the least critical
+// ones first on the smallest screens, and Planned End once we run out of
+// room on tablets too. Project name, Status, and Actions always stay.
+const hideOnMobile = { display: { xs: 'none', sm: 'table-cell' } }
+const hideOnTablet = { display: { xs: 'none', md: 'table-cell' } }
+
 export default function Projects() {
   const { hasRole } = useAuth()
 
@@ -276,12 +282,14 @@ export default function Projects() {
               <TableHead>
                 <TableRow>
                   <TableCell>Project</TableCell>
-                  <TableCell>Department</TableCell>
-                  <TableCell>Manager</TableCell>
+                  <TableCell sx={hideOnMobile}>Department</TableCell>
+                  <TableCell sx={hideOnMobile}>Manager</TableCell>
                   <TableCell>Status</TableCell>
-                  <TableCell>Priority</TableCell>
-                  <TableCell>Planned End</TableCell>
-                  <TableCell align="right">Budget</TableCell>
+                  <TableCell sx={hideOnMobile}>Priority</TableCell>
+                  <TableCell sx={hideOnTablet}>Planned End</TableCell>
+                  <TableCell align="right" sx={hideOnMobile}>
+                    Budget
+                  </TableCell>
                   <TableCell align="right">Actions</TableCell>
                 </TableRow>
               </TableHead>
@@ -315,8 +323,8 @@ export default function Projects() {
                           </Typography>
                         )}
                       </TableCell>
-                      <TableCell>{project.department_name}</TableCell>
-                      <TableCell>{project.manager_name}</TableCell>
+                      <TableCell sx={hideOnMobile}>{project.department_name}</TableCell>
+                      <TableCell sx={hideOnMobile}>{project.manager_name}</TableCell>
                       <TableCell>
                         <Chip
                           label={project.status.replace('_', ' ')}
@@ -324,7 +332,7 @@ export default function Projects() {
                           size="small"
                         />
                       </TableCell>
-                      <TableCell>
+                      <TableCell sx={hideOnMobile}>
                         <Chip
                           label={project.priority}
                           color={PRIORITY_COLORS[project.priority]}
@@ -332,7 +340,7 @@ export default function Projects() {
                           variant="outlined"
                         />
                       </TableCell>
-                      <TableCell>
+                      <TableCell sx={hideOnTablet}>
                         <Typography
                           variant="body2"
                           color={isOverdue(project) ? 'error' : 'text.primary'}
@@ -342,7 +350,7 @@ export default function Projects() {
                           {isOverdue(project) ? ' (overdue)' : ''}
                         </Typography>
                       </TableCell>
-                      <TableCell align="right">
+                      <TableCell align="right" sx={hideOnMobile}>
                         ${Number(project.planned_budget).toLocaleString()}
                       </TableCell>
                       <TableCell align="right">

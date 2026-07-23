@@ -7,35 +7,28 @@ import { AuthProvider, useAuth } from './AuthContext'
 // vi.mock's factory is hoisted above the rest of the file, so anything it
 // references has to be declared inside vi.hoisted() too — a plain `class`/
 // `const` below it would still be in the temporal dead zone at that point.
-const {
-  MockApiError,
-  mockApi,
-  mockGetAccessToken,
-  mockGetRefreshToken,
-  mockSetTokens,
-  mockClearTokens,
-  mockSetOnAuthFailure,
-} = vi.hoisted(() => {
-  class MockApiError extends Error {
-    constructor(message, { status, code, details } = {}) {
-      super(message)
-      this.name = 'ApiError'
-      this.status = status ?? null
-      this.code = code ?? null
-      this.details = details || {}
+const { MockApiError, mockApi, mockGetAccessToken, mockGetRefreshToken, mockSetTokens, mockClearTokens, mockSetOnAuthFailure } =
+  vi.hoisted(() => {
+    class MockApiError extends Error {
+      constructor(message, { status, code, details } = {}) {
+        super(message)
+        this.name = 'ApiError'
+        this.status = status ?? null
+        this.code = code ?? null
+        this.details = details || {}
+      }
     }
-  }
 
-  return {
-    MockApiError,
-    mockApi: { get: vi.fn(), post: vi.fn() },
-    mockGetAccessToken: vi.fn(),
-    mockGetRefreshToken: vi.fn(),
-    mockSetTokens: vi.fn(),
-    mockClearTokens: vi.fn(),
-    mockSetOnAuthFailure: vi.fn(),
-  }
-})
+    return {
+      MockApiError,
+      mockApi: { get: vi.fn(), post: vi.fn() },
+      mockGetAccessToken: vi.fn(),
+      mockGetRefreshToken: vi.fn(),
+      mockSetTokens: vi.fn(),
+      mockClearTokens: vi.fn(),
+      mockSetOnAuthFailure: vi.fn(),
+    }
+  })
 
 vi.mock('../services/api', () => ({
   default: {

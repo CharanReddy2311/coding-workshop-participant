@@ -17,7 +17,12 @@ import {
   Stack,
   TextField,
   Typography,
+  useMediaQuery,
+  useTheme,
 } from '@mui/material'
+import { DesktopDatePicker } from '@mui/x-date-pickers/DesktopDatePicker'
+import { isValid, parseISO } from 'date-fns'
+import { format } from 'date-fns/format'
 
 import { ApiError } from '../services/api'
 import {
@@ -72,6 +77,18 @@ function withCurrentValue(options, currentId, currentLabel) {
   return [...options, { id: currentId, label: `${currentLabel} (inactive)` }]
 }
 
+// The form stores dates as the plain 'yyyy-MM-dd' strings the backend
+// expects; DatePicker works in Date objects, so these convert at the edges.
+function toDateValue(value) {
+  if (!value) return null
+  const parsed = parseISO(value)
+  return isValid(parsed) ? parsed : null
+}
+
+function toDateString(date) {
+  return date && isValid(date) ? format(date, 'yyyy-MM-dd') : ''
+}
+
 const rowSx = { display: 'flex', gap: 2, flexWrap: 'wrap' }
 
 /**
@@ -82,6 +99,8 @@ const rowSx = { display: 'flex', gap: 2, flexWrap: 'wrap' }
  */
 export default function DeliverableFormDialog({ open, deliverable, onClose, onSaved }) {
   const isEdit = Boolean(deliverable)
+  const theme = useTheme()
+  const fullScreen = useMediaQuery(theme.breakpoints.down('sm'))
 
   const [form, setForm] = useState(() => toFormState(deliverable))
   const [fieldErrors, setFieldErrors] = useState({})
@@ -174,7 +193,7 @@ export default function DeliverableFormDialog({ open, deliverable, onClose, onSa
   )
 
   return (
-    <Dialog open={open} onClose={submitting ? undefined : onClose} fullWidth maxWidth="md">
+    <Dialog open={open} onClose={submitting ? undefined : onClose} fullWidth maxWidth="md" fullScreen={fullScreen}>
       <DialogTitle>{isEdit ? `Edit ${deliverable.name}` : 'Create Deliverable'}</DialogTitle>
       <Box component="form" onSubmit={handleSubmit}>
         <DialogContent>
@@ -284,28 +303,35 @@ export default function DeliverableFormDialog({ open, deliverable, onClose, onSa
             </Box>
 
             <Box sx={rowSx}>
-              <TextField
-                type="date"
+              <DesktopDatePicker
                 label="Due Date"
-                value={form.due_date}
-                onChange={(event) => setField('due_date', event.target.value)}
-                error={Boolean(fieldErrors.due_date)}
-                helperText={fieldErrors.due_date || ' '}
-                required
+                value={toDateValue(form.due_date)}
+                onChange={(date) => setField('due_date', toDateString(date))}
+                format="yyyy-MM-dd"
                 disabled={submitting}
-                slotProps={{ inputLabel: { shrink: true } }}
-                sx={{ flex: '1 1 200px' }}
+                slotProps={{
+                  textField: {
+                    required: true,
+                    error: Boolean(fieldErrors.due_date),
+                    helperText: fieldErrors.due_date || ' ',
+                    sx: { flex: '1 1 200px' },
+                  },
+                }}
               />
-              <TextField
-                type="date"
+              <DesktopDatePicker
                 label="Completed On"
-                value={form.completed_at}
-                onChange={(event) => setField('completed_at', event.target.value)}
-                error={Boolean(fieldErrors.completed_at)}
-                helperText={fieldErrors.completed_at || 'Required once marked Completed'}
+                value={toDateValue(form.completed_at)}
+                onChange={(date) => setField('completed_at', toDateString(date))}
+                format="yyyy-MM-dd"
                 disabled={submitting}
-                slotProps={{ inputLabel: { shrink: true } }}
-                sx={{ flex: '1 1 200px' }}
+                slotProps={{
+                  textField: {
+                    error: Boolean(fieldErrors.completed_at),
+                    helperText: fieldErrors.completed_at || 'Required once marked Completed',
+                    sx: { flex: '1 1 200px' },
+                  },
+                  field: { clearable: true },
+                }}
               />
             </Box>
 

@@ -57,6 +57,10 @@ function isOverdue(deliverable) {
   return OPEN_STATUSES.includes(deliverable.status) && deliverable.due_date < today
 }
 
+// Drop the columns you need least to identify a row and act on it, so the
+// table stays usable without horizontal scrolling on a phone.
+const hideOnMobile = { display: { xs: 'none', sm: 'table-cell' } }
+
 export default function Deliverables() {
   const { hasRole } = useAuth()
 
@@ -265,8 +269,8 @@ export default function Deliverables() {
               <TableHead>
                 <TableRow>
                   <TableCell>Deliverable</TableCell>
-                  <TableCell>Project</TableCell>
-                  <TableCell>Owner</TableCell>
+                  <TableCell sx={hideOnMobile}>Project</TableCell>
+                  <TableCell sx={hideOnMobile}>Owner</TableCell>
                   <TableCell>Status</TableCell>
                   <TableCell>Progress</TableCell>
                   <TableCell>Due Date</TableCell>
@@ -301,10 +305,10 @@ export default function Deliverables() {
                           </Typography>
                         )}
                       </TableCell>
-                      <TableCell>
+                      <TableCell sx={hideOnMobile}>
                         {deliverable.project_code} — {deliverable.project_name}
                       </TableCell>
-                      <TableCell>{deliverable.owner_name || '—'}</TableCell>
+                      <TableCell sx={hideOnMobile}>{deliverable.owner_name || '—'}</TableCell>
                       <TableCell>
                         <Chip
                           label={deliverable.status.replace(/_/g, ' ')}

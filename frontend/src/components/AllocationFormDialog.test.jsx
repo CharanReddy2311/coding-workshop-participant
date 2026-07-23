@@ -1,5 +1,7 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns'
+import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import AllocationFormDialog from './AllocationFormDialog'
@@ -40,6 +42,14 @@ vi.mock('../services/projectService', () => ({
 const USERS = [{ id: 'user-1', full_name: 'Ada Lovelace', email: 'ada@example.com' }]
 const PROJECTS = [{ id: 'proj-1', code: 'PR01', name: 'Expense Tracker' }]
 
+function renderDialog(props) {
+  return render(
+    <LocalizationProvider dateAdapter={AdapterDateFns}>
+      <AllocationFormDialog {...props} />
+    </LocalizationProvider>,
+  )
+}
+
 async function selectOption(labelPattern, optionText) {
   const combobox = screen.getByRole('combobox', { name: labelPattern })
   await userEvent.click(combobox)
@@ -47,12 +57,25 @@ async function selectOption(labelPattern, optionText) {
   await userEvent.click(within(listbox).getByText(optionText))
 }
 
+// DesktopDatePicker splits its field into year/month/day spinbutton
+// sections rather than a single native input — clicking the first section
+// and typing the digits in order auto-advances through the rest.
+async function pickDate(labelPattern, isoDateString) {
+  const [year, month, day] = isoDateString.split('-')
+  const group = screen.getByRole('group', { name: labelPattern })
+  const sections = within(group).getAllByRole('spinbutton')
+  await userEvent.click(sections[0])
+  await userEvent.keyboard(year)
+  await userEvent.keyboard(month)
+  await userEvent.keyboard(day)
+}
+
 async function fillRequiredFieldsForCreate() {
   await waitFor(() => expect(mockFetchUsers).toHaveBeenCalled())
   await selectOption(/^user/i, 'Ada Lovelace — ada@example.com')
   await selectOption(/^project/i, 'PR01 — Expense Tracker')
-  fireEvent.change(screen.getByLabelText(/start date/i), { target: { value: '2027-01-01' } })
-  fireEvent.change(screen.getByLabelText(/end date/i), { target: { value: '2027-03-01' } })
+  await pickDate(/start date/i, '2027-01-01')
+  await pickDate(/end date/i, '2027-03-01')
 }
 
 beforeEach(() => {
@@ -64,7 +87,7 @@ beforeEach(() => {
 
 describe('create mode', () => {
   it('renders the create title with a 50% default and submit disabled', async () => {
-    render(<AllocationFormDialog open allocation={null} onClose={vi.fn()} onSaved={vi.fn()} />)
+    renderDialog({ open: true, allocation: null, onClose: vi.fn(), onSaved: vi.fn() })
     expect(screen.getByRole('heading', { name: 'Create Allocation' })).toBeInTheDocument()
     expect(screen.getByLabelText(/allocation %/i)).toHaveValue(50)
     await waitFor(() => expect(mockFetchUsers).toHaveBeenCalled())
@@ -72,7 +95,7 @@ describe('create mode', () => {
   })
 
   it('enables submit once user, project, and both dates are set', async () => {
-    render(<AllocationFormDialog open allocation={null} onClose={vi.fn()} onSaved={vi.fn()} />)
+    renderDialog({ open: true, allocation: null, onClose: vi.fn(), onSaved: vi.fn() })
     await fillRequiredFieldsForCreate()
     expect(screen.getByRole('button', { name: 'Create Allocation' })).toBeEnabled()
   })
@@ -82,7 +105,7 @@ describe('create mode', () => {
     const created = { id: 'a1' }
     mockCreateAllocation.mockResolvedValue(created)
 
-    render(<AllocationFormDialog open allocation={null} onClose={vi.fn()} onSaved={onSaved} />)
+    renderDialog({ open: true, allocation: null, onClose: vi.fn(), onSaved })
     await fillRequiredFieldsForCreate()
     await userEvent.click(screen.getByRole('button', { name: 'Create Allocation' }))
 
@@ -108,7 +131,7 @@ describe('create mode', () => {
       }),
     )
 
-    render(<AllocationFormDialog open allocation={null} onClose={vi.fn()} onSaved={vi.fn()} />)
+    renderDialog({ open: true, allocation: null, onClose: vi.fn(), onSaved: vi.fn() })
     await fillRequiredFieldsForCreate()
     await userEvent.click(screen.getByRole('button', { name: 'Create Allocation' }))
 
@@ -125,7 +148,7 @@ describe('create mode', () => {
       }),
     )
 
-    render(<AllocationFormDialog open allocation={null} onClose={vi.fn()} onSaved={vi.fn()} />)
+    renderDialog({ open: true, allocation: null, onClose: vi.fn(), onSaved: vi.fn() })
     await fillRequiredFieldsForCreate()
     await userEvent.click(screen.getByRole('button', { name: 'Create Allocation' }))
 
@@ -135,7 +158,7 @@ describe('create mode', () => {
 
   it('shows a generic message for a non-ApiError failure', async () => {
     mockCreateAllocation.mockRejectedValue(new Error('kaboom'))
-    render(<AllocationFormDialog open allocation={null} onClose={vi.fn()} onSaved={vi.fn()} />)
+    renderDialog({ open: true, allocation: null, onClose: vi.fn(), onSaved: vi.fn() })
     await fillRequiredFieldsForCreate()
     await userEvent.click(screen.getByRole('button', { name: 'Create Allocation' }))
     expect(await screen.findByText('Something went wrong. Please try again.')).toBeInTheDocument()
@@ -143,7 +166,7 @@ describe('create mode', () => {
 
   it('shows a warning when the dropdown options fail to load', async () => {
     mockFetchUsers.mockRejectedValue(new MockApiError('Network error', { status: 0 }))
-    render(<AllocationFormDialog open allocation={null} onClose={vi.fn()} onSaved={vi.fn()} />)
+    renderDialog({ open: true, allocation: null, onClose: vi.fn(), onSaved: vi.fn() })
     expect(await screen.findByText('Network error')).toBeInTheDocument()
   })
 })
@@ -163,19 +186,27 @@ describe('edit mode', () => {
   }
 
   it('renders the edit title and pre-fills every field', async () => {
-    render(<AllocationFormDialog open allocation={existingAllocation} onClose={vi.fn()} onSaved={vi.fn()} />)
+    renderDialog({ open: true, allocation: existingAllocation, onClose: vi.fn(), onSaved: vi.fn() })
     expect(screen.getByRole('heading', { name: 'Edit Allocation' })).toBeInTheDocument()
     expect(screen.getByLabelText(/role on project/i)).toHaveValue('Tech Lead')
     expect(screen.getByLabelText(/allocation %/i)).toHaveValue(75)
-    expect(screen.getByLabelText(/start date/i)).toHaveValue('2027-01-01')
-    expect(screen.getByLabelText(/end date/i)).toHaveValue('2027-03-01')
+
+    const start = screen.getByRole('group', { name: /start date/i })
+    expect(within(start).getByRole('spinbutton', { name: 'Year' })).toHaveTextContent('2027')
+    expect(within(start).getByRole('spinbutton', { name: 'Month' })).toHaveTextContent('01')
+    expect(within(start).getByRole('spinbutton', { name: 'Day' })).toHaveTextContent('01')
+
+    const end = screen.getByRole('group', { name: /end date/i })
+    expect(within(end).getByRole('spinbutton', { name: 'Year' })).toHaveTextContent('2027')
+    expect(within(end).getByRole('spinbutton', { name: 'Month' })).toHaveTextContent('03')
+    expect(within(end).getByRole('spinbutton', { name: 'Day' })).toHaveTextContent('01')
   })
 
   it('submits an update via updateAllocation', async () => {
     mockUpdateAllocation.mockResolvedValue({ ...existingAllocation, allocation_pct: 90 })
     const onSaved = vi.fn()
 
-    render(<AllocationFormDialog open allocation={existingAllocation} onClose={vi.fn()} onSaved={onSaved} />)
+    renderDialog({ open: true, allocation: existingAllocation, onClose: vi.fn(), onSaved })
     await waitFor(() => expect(mockFetchUsers).toHaveBeenCalled())
 
     const pctField = screen.getByLabelText(/allocation %/i)
@@ -186,7 +217,7 @@ describe('edit mode', () => {
     await waitFor(() =>
       expect(mockUpdateAllocation).toHaveBeenCalledWith(
         'a1',
-        expect.objectContaining({ allocation_pct: 90 }),
+        expect.objectContaining({ allocation_pct: 90, start_date: '2027-01-01', end_date: '2027-03-01' }),
       ),
     )
     expect(onSaved).toHaveBeenCalled()
@@ -196,7 +227,7 @@ describe('edit mode', () => {
     mockFetchUsers.mockResolvedValue([])
     mockListProjects.mockResolvedValue({ projects: [], meta: { total: 0 } })
 
-    render(<AllocationFormDialog open allocation={existingAllocation} onClose={vi.fn()} onSaved={vi.fn()} />)
+    renderDialog({ open: true, allocation: existingAllocation, onClose: vi.fn(), onSaved: vi.fn() })
     await waitFor(() => expect(mockFetchUsers).toHaveBeenCalled())
 
     expect(screen.getByRole('combobox', { name: /^user/i })).toHaveTextContent('Ada Lovelace (inactive)')

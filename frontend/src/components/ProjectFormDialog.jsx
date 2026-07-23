@@ -10,7 +10,12 @@ import {
   MenuItem,
   Stack,
   TextField,
+  useMediaQuery,
+  useTheme,
 } from '@mui/material'
+import { DesktopDatePicker } from '@mui/x-date-pickers/DesktopDatePicker'
+import { isValid, parseISO } from 'date-fns'
+import { format } from 'date-fns/format'
 
 import { ApiError } from '../services/api'
 import { fetchDepartments, fetchUsers } from '../services/directoryService'
@@ -61,6 +66,18 @@ function withCurrentValue(options, currentId, currentLabel) {
   return [...options, { id: currentId, label: `${currentLabel} (inactive)` }]
 }
 
+// The form stores dates as the plain 'yyyy-MM-dd' strings the backend
+// expects; DatePicker works in Date objects, so these convert at the edges.
+function toDateValue(value) {
+  if (!value) return null
+  const parsed = parseISO(value)
+  return isValid(parsed) ? parsed : null
+}
+
+function toDateString(date) {
+  return date && isValid(date) ? format(date, 'yyyy-MM-dd') : ''
+}
+
 const fieldSx = { flex: '1 1 220px' }
 
 /**
@@ -71,6 +88,8 @@ const fieldSx = { flex: '1 1 220px' }
  */
 export default function ProjectFormDialog({ open, project, onClose, onSaved }) {
   const isEdit = Boolean(project)
+  const theme = useTheme()
+  const fullScreen = useMediaQuery(theme.breakpoints.down('sm'))
 
   const [form, setForm] = useState(() => toFormState(project))
   const [fieldErrors, setFieldErrors] = useState({})
@@ -166,7 +185,7 @@ export default function ProjectFormDialog({ open, project, onClose, onSaved }) {
   )
 
   return (
-    <Dialog open={open} onClose={submitting ? undefined : onClose} fullWidth maxWidth="md">
+    <Dialog open={open} onClose={submitting ? undefined : onClose} fullWidth maxWidth="md" fullScreen={fullScreen}>
       <DialogTitle>{isEdit ? `Edit ${project.name}` : 'Create Project'}</DialogTitle>
       <Box component="form" onSubmit={handleSubmit}>
         <DialogContent>
@@ -283,43 +302,53 @@ export default function ProjectFormDialog({ open, project, onClose, onSaved }) {
             </Box>
 
             <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
-              <TextField
-                type="date"
+              <DesktopDatePicker
                 label="Start Date"
-                value={form.start_date}
-                onChange={(event) => setField('start_date', event.target.value)}
-                error={Boolean(fieldErrors.start_date)}
-                helperText={fieldErrors.start_date || ' '}
-                required
+                value={toDateValue(form.start_date)}
+                onChange={(date) => setField('start_date', toDateString(date))}
+                format="yyyy-MM-dd"
                 disabled={submitting}
-                slotProps={{ inputLabel: { shrink: true } }}
-                sx={fieldSx}
+                slotProps={{
+                  textField: {
+                    required: true,
+                    error: Boolean(fieldErrors.start_date),
+                    helperText: fieldErrors.start_date || ' ',
+                    sx: fieldSx,
+                  },
+                }}
               />
-              <TextField
-                type="date"
+              <DesktopDatePicker
                 label="Planned End"
-                value={form.planned_end}
-                onChange={(event) => setField('planned_end', event.target.value)}
-                error={Boolean(fieldErrors.planned_end)}
-                helperText={fieldErrors.planned_end || ' '}
-                required
+                value={toDateValue(form.planned_end)}
+                onChange={(date) => setField('planned_end', toDateString(date))}
+                format="yyyy-MM-dd"
                 disabled={submitting}
-                slotProps={{ inputLabel: { shrink: true } }}
-                sx={fieldSx}
+                slotProps={{
+                  textField: {
+                    required: true,
+                    error: Boolean(fieldErrors.planned_end),
+                    helperText: fieldErrors.planned_end || ' ',
+                    sx: fieldSx,
+                  },
+                }}
               />
             </Box>
 
             <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
-              <TextField
-                type="date"
+              <DesktopDatePicker
                 label="Actual End"
-                value={form.actual_end}
-                onChange={(event) => setField('actual_end', event.target.value)}
-                error={Boolean(fieldErrors.actual_end)}
-                helperText={fieldErrors.actual_end || 'Required once the project is Completed'}
+                value={toDateValue(form.actual_end)}
+                onChange={(date) => setField('actual_end', toDateString(date))}
+                format="yyyy-MM-dd"
                 disabled={submitting}
-                slotProps={{ inputLabel: { shrink: true } }}
-                sx={fieldSx}
+                slotProps={{
+                  textField: {
+                    error: Boolean(fieldErrors.actual_end),
+                    helperText: fieldErrors.actual_end || 'Required once the project is Completed',
+                    sx: fieldSx,
+                  },
+                  field: { clearable: true },
+                }}
               />
               <TextField
                 type="number"

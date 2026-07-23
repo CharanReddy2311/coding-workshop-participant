@@ -44,6 +44,10 @@ function isActive(allocation) {
   return allocation.start_date <= today && today <= allocation.end_date
 }
 
+// Role is the least essential column for identifying/acting on a row, so
+// it's the one dropped on phones.
+const hideOnMobile = { display: { xs: 'none', sm: 'table-cell' } }
+
 export default function Allocations() {
   const { hasRole } = useAuth()
 
@@ -245,8 +249,8 @@ export default function Allocations() {
               <TableHead>
                 <TableRow>
                   <TableCell>User</TableCell>
-                  <TableCell>Project</TableCell>
-                  <TableCell>Role</TableCell>
+                  <TableCell sx={hideOnMobile}>Project</TableCell>
+                  <TableCell sx={hideOnMobile}>Role</TableCell>
                   <TableCell>Allocation</TableCell>
                   <TableCell>Period</TableCell>
                   <TableCell align="right">Actions</TableCell>
@@ -278,10 +282,10 @@ export default function Allocations() {
                           {allocation.user_email}
                         </Typography>
                       </TableCell>
-                      <TableCell>
+                      <TableCell sx={hideOnMobile}>
                         {allocation.project_code} — {allocation.project_name}
                       </TableCell>
-                      <TableCell>{allocation.role_on_project || '—'}</TableCell>
+                      <TableCell sx={hideOnMobile}>{allocation.role_on_project || '—'}</TableCell>
                       <TableCell>
                         <Chip
                           label={`${allocation.allocation_pct}%`}

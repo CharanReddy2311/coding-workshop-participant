@@ -37,6 +37,11 @@ import TeamFormDialog from '../components/TeamFormDialog'
 import { useAuth } from '../context/AuthContext'
 import { deleteTeam, listTeams } from '../services/teamService'
 
+// Secondary columns dropped on phones so the table doesn't force horizontal
+// scrolling — Name and Status/Actions stay, since those are what you need
+// to identify a row and act on it.
+const hideOnMobile = { display: { xs: 'none', sm: 'table-cell' } }
+
 export default function Teams() {
   const { hasRole } = useAuth()
 
@@ -234,8 +239,8 @@ export default function Teams() {
               <TableHead>
                 <TableRow>
                   <TableCell>Name</TableCell>
-                  <TableCell>Department</TableCell>
-                  <TableCell>Manager</TableCell>
+                  <TableCell sx={hideOnMobile}>Department</TableCell>
+                  <TableCell sx={hideOnMobile}>Manager</TableCell>
                   <TableCell>Status</TableCell>
                   <TableCell align="right">Actions</TableCell>
                 </TableRow>
@@ -268,8 +273,8 @@ export default function Teams() {
                           </Typography>
                         )}
                       </TableCell>
-                      <TableCell>{team.department_name}</TableCell>
-                      <TableCell>{team.manager_name}</TableCell>
+                      <TableCell sx={hideOnMobile}>{team.department_name}</TableCell>
+                      <TableCell sx={hideOnMobile}>{team.manager_name}</TableCell>
                       <TableCell>
                         <Chip
                           label={team.is_active ? 'Active' : 'Inactive'}

@@ -1,6 +1,7 @@
 import { useState } from 'react'
-import { Alert, Box, Button, Card, CardContent, CircularProgress, TextField, Typography } from '@mui/material'
-import { Navigate, useLocation, useNavigate } from 'react-router-dom'
+import WorkspacesIcon from '@mui/icons-material/Workspaces'
+import { Alert, Box, Button, Card, CircularProgress, Link as MuiLink, Stack, TextField, Typography } from '@mui/material'
+import { Link as RouterLink, Navigate, useLocation, useNavigate } from 'react-router-dom'
 
 import { useAuth } from '../context/AuthContext'
 
@@ -41,61 +42,91 @@ export default function Login() {
         minHeight: '100vh',
         alignItems: 'center',
         justifyContent: 'center',
-        bgcolor: 'grey.100',
+        bgcolor: 'background.default',
+        p: 2,
       }}
     >
-      <Card sx={{ width: 380, maxWidth: '90vw' }}>
-        <CardContent sx={{ p: 4 }}>
-          <Typography variant="h5" component="h1" fontWeight={600} gutterBottom>
+      <Card
+        elevation={0}
+        sx={{
+          width: 420,
+          maxWidth: '100%',
+          p: { xs: 3, sm: 4 },
+          boxShadow: '0px 12px 32px rgba(16, 24, 40, 0.12)',
+        }}
+      >
+        <Stack spacing={0.5} sx={{ alignItems: 'center', mb: 3 }}>
+          <Box
+            sx={{
+              width: 48,
+              height: 48,
+              borderRadius: 2,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              bgcolor: 'primary.main',
+              color: 'primary.contrastText',
+              mb: 1,
+            }}
+          >
+            <WorkspacesIcon />
+          </Box>
+          <Typography variant="h5" component="h1" fontWeight={700}>
             ACME Project Tracker
           </Typography>
-          <Typography variant="body2" color="text.secondary" gutterBottom>
+          <Typography variant="body2" color="text.secondary">
             Sign in to continue
           </Typography>
+        </Stack>
 
-          <Box component="form" onSubmit={handleSubmit} noValidate sx={{ mt: 2 }}>
-            {error && (
-              <Alert severity="error" sx={{ mb: 2 }}>
-                {error}
-              </Alert>
-            )}
+        <Box component="form" onSubmit={handleSubmit} noValidate>
+          {error && (
+            <Alert severity="error" sx={{ mb: 2 }}>
+              {error}
+            </Alert>
+          )}
 
-            <TextField
-              label="Email"
-              type="email"
-              value={email}
-              onChange={(event) => setEmail(event.target.value)}
-              fullWidth
-              required
-              autoFocus
-              autoComplete="email"
-              margin="normal"
-              disabled={submitting}
-            />
-            <TextField
-              label="Password"
-              type="password"
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-              fullWidth
-              required
-              autoComplete="current-password"
-              margin="normal"
-              disabled={submitting}
-            />
+          <TextField
+            label="Email"
+            type="email"
+            value={email}
+            onChange={(event) => setEmail(event.target.value)}
+            fullWidth
+            required
+            autoFocus
+            autoComplete="email"
+            margin="normal"
+            disabled={submitting}
+          />
+          <TextField
+            label="Password"
+            type="password"
+            value={password}
+            onChange={(event) => setPassword(event.target.value)}
+            fullWidth
+            required
+            autoComplete="current-password"
+            margin="normal"
+            disabled={submitting}
+          />
 
-            <Button
-              type="submit"
-              variant="contained"
-              fullWidth
-              size="large"
-              sx={{ mt: 3 }}
-              disabled={submitting || !email || !password}
-            >
-              {submitting ? <CircularProgress size={24} color="inherit" /> : 'Sign In'}
-            </Button>
+          <Box sx={{ textAlign: 'right', mt: 0.5 }}>
+            <MuiLink component={RouterLink} to="/forgot-password" variant="body2" underline="hover">
+              Forgot password?
+            </MuiLink>
           </Box>
-        </CardContent>
+
+          <Button
+            type="submit"
+            variant="contained"
+            fullWidth
+            size="large"
+            sx={{ mt: 2 }}
+            disabled={submitting || !email || !password}
+          >
+            {submitting ? <CircularProgress size={24} color="inherit" /> : 'Sign In'}
+          </Button>
+        </Box>
       </Card>
     </Box>
   )

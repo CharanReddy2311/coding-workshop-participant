@@ -1,5 +1,21 @@
 import { useEffect, useState } from 'react'
-import { Alert, Box, Button, Dialog, DialogActions, DialogContent, DialogTitle, MenuItem, Stack, TextField } from '@mui/material'
+import {
+  Alert,
+  Box,
+  Button,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
+  MenuItem,
+  Stack,
+  TextField,
+  useMediaQuery,
+  useTheme,
+} from '@mui/material'
+import { DesktopDatePicker } from '@mui/x-date-pickers/DesktopDatePicker'
+import { isValid, parseISO } from 'date-fns'
+import { format } from 'date-fns/format'
 
 import { ApiError } from '../services/api'
 import { createAllocation, updateAllocation } from '../services/allocationService'
@@ -37,6 +53,18 @@ function withCurrentValue(options, currentId, currentLabel) {
   return [...options, { id: currentId, label: `${currentLabel} (inactive)` }]
 }
 
+// The form stores dates as the plain 'yyyy-MM-dd' strings the backend
+// expects; DatePicker works in Date objects, so these convert at the edges.
+function toDateValue(value) {
+  if (!value) return null
+  const parsed = parseISO(value)
+  return isValid(parsed) ? parsed : null
+}
+
+function toDateString(date) {
+  return date && isValid(date) ? format(date, 'yyyy-MM-dd') : ''
+}
+
 const fieldSx = { flex: '1 1 200px' }
 
 /**
@@ -47,6 +75,8 @@ const fieldSx = { flex: '1 1 200px' }
  */
 export default function AllocationFormDialog({ open, allocation, onClose, onSaved }) {
   const isEdit = Boolean(allocation)
+  const theme = useTheme()
+  const fullScreen = useMediaQuery(theme.breakpoints.down('sm'))
 
   const [form, setForm] = useState(() => toFormState(allocation))
   const [fieldErrors, setFieldErrors] = useState({})
@@ -144,7 +174,7 @@ export default function AllocationFormDialog({ open, allocation, onClose, onSave
   )
 
   return (
-    <Dialog open={open} onClose={submitting ? undefined : onClose} fullWidth maxWidth="sm">
+    <Dialog open={open} onClose={submitting ? undefined : onClose} fullWidth maxWidth="sm" fullScreen={fullScreen}>
       <DialogTitle>{isEdit ? 'Edit Allocation' : 'Create Allocation'}</DialogTitle>
       <Box component="form" onSubmit={handleSubmit}>
         <DialogContent>
@@ -200,29 +230,35 @@ export default function AllocationFormDialog({ open, allocation, onClose, onSave
             />
 
             <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
-              <TextField
-                type="date"
+              <DesktopDatePicker
                 label="Start Date"
-                value={form.start_date}
-                onChange={(event) => setField('start_date', event.target.value)}
-                error={Boolean(fieldErrors.start_date)}
-                helperText={fieldErrors.start_date || ' '}
-                required
+                value={toDateValue(form.start_date)}
+                onChange={(date) => setField('start_date', toDateString(date))}
+                format="yyyy-MM-dd"
                 disabled={submitting}
-                slotProps={{ inputLabel: { shrink: true } }}
-                sx={fieldSx}
+                slotProps={{
+                  textField: {
+                    required: true,
+                    error: Boolean(fieldErrors.start_date),
+                    helperText: fieldErrors.start_date || ' ',
+                    sx: fieldSx,
+                  },
+                }}
               />
-              <TextField
-                type="date"
+              <DesktopDatePicker
                 label="End Date"
-                value={form.end_date}
-                onChange={(event) => setField('end_date', event.target.value)}
-                error={Boolean(fieldErrors.end_date)}
-                helperText={fieldErrors.end_date || ' '}
-                required
+                value={toDateValue(form.end_date)}
+                onChange={(date) => setField('end_date', toDateString(date))}
+                format="yyyy-MM-dd"
                 disabled={submitting}
-                slotProps={{ inputLabel: { shrink: true } }}
-                sx={fieldSx}
+                slotProps={{
+                  textField: {
+                    required: true,
+                    error: Boolean(fieldErrors.end_date),
+                    helperText: fieldErrors.end_date || ' ',
+                    sx: fieldSx,
+                  },
+                }}
               />
               <TextField
                 type="number"

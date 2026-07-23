@@ -22,6 +22,7 @@ function renderLogin(initialEntries = ['/login']) {
     <MemoryRouter initialEntries={initialEntries}>
       <Routes>
         <Route path="/login" element={<Login />} />
+        <Route path="/forgot-password" element={<div>Forgot Password Page</div>} />
         <Route path="/" element={<div>Home Page</div>} />
       </Routes>
     </MemoryRouter>,
@@ -37,6 +38,13 @@ beforeEach(() => {
 it('renders the sign-in form with submit disabled until both fields are filled', () => {
   renderLogin()
   expect(screen.getByRole('button', { name: 'Sign In' })).toBeDisabled()
+})
+
+it('does not render a demo mode or self-service registration option', () => {
+  renderLogin()
+  expect(screen.queryByText(/preview as a role/i)).not.toBeInTheDocument()
+  expect(screen.queryByText(/preview dashboard/i)).not.toBeInTheDocument()
+  expect(screen.queryByText(/create one/i)).not.toBeInTheDocument()
 })
 
 it('redirects away immediately when already authenticated', () => {
@@ -78,4 +86,9 @@ it('falls back to a generic message when the error has no message', async () => 
   await userEvent.click(screen.getByRole('button', { name: 'Sign In' }))
 
   expect(await screen.findByText('Unable to log in')).toBeInTheDocument()
+})
+
+it('links to the forgot-password page', () => {
+  renderLogin()
+  expect(screen.getByRole('link', { name: /forgot password/i })).toHaveAttribute('href', '/forgot-password')
 })

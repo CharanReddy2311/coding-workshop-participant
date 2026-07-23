@@ -1,5 +1,7 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns'
+import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import ProjectFormDialog from './ProjectFormDialog'
@@ -36,11 +38,41 @@ vi.mock('../services/projectService', () => ({
 const DEPARTMENTS = [{ id: 'dept-1', name: 'Finance' }]
 const USERS = [{ id: 'user-1', full_name: 'Ada Lovelace', email: 'ada@example.com' }]
 
+function renderDialog(props) {
+  return render(
+    <LocalizationProvider dateAdapter={AdapterDateFns}>
+      <ProjectFormDialog {...props} />
+    </LocalizationProvider>,
+  )
+}
+
 async function selectOption(labelPattern, optionText) {
   const combobox = screen.getByRole('combobox', { name: labelPattern })
   await userEvent.click(combobox)
   const listbox = await screen.findByRole('listbox')
   await userEvent.click(within(listbox).getByText(optionText))
+}
+
+// DesktopDatePicker splits its field into year/month/day spinbutton
+// sections rather than a single native input — clicking the first section
+// and typing the digits in order auto-advances through the rest.
+async function pickDate(labelPattern, isoDateString) {
+  const [year, month, day] = isoDateString.split('-')
+  const group = screen.getByRole('group', { name: labelPattern })
+  const sections = within(group).getAllByRole('spinbutton')
+  await userEvent.click(sections[0])
+  await userEvent.keyboard(year)
+  await userEvent.keyboard(month)
+  await userEvent.keyboard(day)
+}
+
+function dateGroupSections(labelPattern) {
+  const group = screen.getByRole('group', { name: labelPattern })
+  return {
+    year: within(group).getByRole('spinbutton', { name: 'Year' }),
+    month: within(group).getByRole('spinbutton', { name: 'Month' }),
+    day: within(group).getByRole('spinbutton', { name: 'Day' }),
+  }
 }
 
 async function fillRequiredFieldsForCreate() {
@@ -49,8 +81,8 @@ async function fillRequiredFieldsForCreate() {
   await userEvent.type(screen.getByLabelText(/^name/i), 'New Project')
   await selectOption(/department/i, 'Finance')
   await selectOption(/manager/i, 'Ada Lovelace — ada@example.com')
-  fireEvent.change(screen.getByLabelText(/start date/i), { target: { value: '2027-01-01' } })
-  fireEvent.change(screen.getByLabelText(/planned end/i), { target: { value: '2027-06-30' } })
+  await pickDate(/start date/i, '2027-01-01')
+  await pickDate(/planned end/i, '2027-06-30')
 }
 
 beforeEach(() => {
@@ -62,7 +94,7 @@ beforeEach(() => {
 
 describe('create mode', () => {
   it('renders the create title with Status/Priority defaulted and submit disabled', async () => {
-    render(<ProjectFormDialog open project={null} onClose={vi.fn()} onSaved={vi.fn()} />)
+    renderDialog({ open: true, project: null, onClose: vi.fn(), onSaved: vi.fn() })
     expect(screen.getByRole('heading', { name: 'Create Project' })).toBeInTheDocument()
     expect(screen.getByRole('combobox', { name: /^status/i })).toHaveTextContent('PLANNING')
     expect(screen.getByRole('combobox', { name: /^priority/i })).toHaveTextContent('MEDIUM')
@@ -71,7 +103,7 @@ describe('create mode', () => {
   })
 
   it('enables submit only once code, name, department, manager, and both dates are set', async () => {
-    render(<ProjectFormDialog open project={null} onClose={vi.fn()} onSaved={vi.fn()} />)
+    renderDialog({ open: true, project: null, onClose: vi.fn(), onSaved: vi.fn() })
     await fillRequiredFieldsForCreate()
     expect(screen.getByRole('button', { name: 'Create Project' })).toBeEnabled()
   })
@@ -81,7 +113,7 @@ describe('create mode', () => {
     const createdProject = { id: 'p1', code: 'PR05', name: 'New Project' }
     mockCreateProject.mockResolvedValue(createdProject)
 
-    render(<ProjectFormDialog open project={null} onClose={vi.fn()} onSaved={onSaved} />)
+    renderDialog({ open: true, project: null, onClose: vi.fn(), onSaved })
     await fillRequiredFieldsForCreate()
     await userEvent.click(screen.getByRole('button', { name: 'Create Project' }))
 
@@ -111,7 +143,7 @@ describe('create mode', () => {
       }),
     )
 
-    render(<ProjectFormDialog open project={null} onClose={vi.fn()} onSaved={vi.fn()} />)
+    renderDialog({ open: true, project: null, onClose: vi.fn(), onSaved: vi.fn() })
     await fillRequiredFieldsForCreate()
     await selectOption(/^status/i, 'COMPLETED')
     await userEvent.click(screen.getByRole('button', { name: 'Create Project' }))
@@ -122,7 +154,7 @@ describe('create mode', () => {
 
   it('shows a generic message for a non-ApiError failure', async () => {
     mockCreateProject.mockRejectedValue(new Error('kaboom'))
-    render(<ProjectFormDialog open project={null} onClose={vi.fn()} onSaved={vi.fn()} />)
+    renderDialog({ open: true, project: null, onClose: vi.fn(), onSaved: vi.fn() })
     await fillRequiredFieldsForCreate()
     await userEvent.click(screen.getByRole('button', { name: 'Create Project' }))
     expect(await screen.findByText('Something went wrong. Please try again.')).toBeInTheDocument()
@@ -130,7 +162,7 @@ describe('create mode', () => {
 
   it('sends a numeric planned_budget when one is typed', async () => {
     mockCreateProject.mockResolvedValue({ id: 'p1' })
-    render(<ProjectFormDialog open project={null} onClose={vi.fn()} onSaved={vi.fn()} />)
+    renderDialog({ open: true, project: null, onClose: vi.fn(), onSaved: vi.fn() })
     await fillRequiredFieldsForCreate()
     const budgetField = screen.getByLabelText(/planned budget/i)
     await userEvent.clear(budgetField)
@@ -139,6 +171,18 @@ describe('create mode', () => {
 
     await waitFor(() =>
       expect(mockCreateProject).toHaveBeenCalledWith(expect.objectContaining({ planned_budget: 25000 })),
+    )
+  })
+
+  it('sets an optional Actual End date via the date picker', async () => {
+    mockCreateProject.mockResolvedValue({ id: 'p1' })
+    renderDialog({ open: true, project: null, onClose: vi.fn(), onSaved: vi.fn() })
+    await fillRequiredFieldsForCreate()
+    await pickDate(/actual end/i, '2027-07-04')
+    await userEvent.click(screen.getByRole('button', { name: 'Create Project' }))
+
+    await waitFor(() =>
+      expect(mockCreateProject).toHaveBeenCalledWith(expect.objectContaining({ actual_end: '2027-07-04' })),
     )
   })
 })
@@ -162,12 +206,21 @@ describe('edit mode', () => {
   }
 
   it('renders the edit title and pre-fills every field including dates and budget', async () => {
-    render(<ProjectFormDialog open project={existingProject} onClose={vi.fn()} onSaved={vi.fn()} />)
+    renderDialog({ open: true, project: existingProject, onClose: vi.fn(), onSaved: vi.fn() })
     expect(screen.getByRole('heading', { name: 'Edit Expense Tracker' })).toBeInTheDocument()
     expect(screen.getByLabelText(/code/i)).toHaveValue('PR03')
-    expect(screen.getByLabelText(/start date/i)).toHaveValue('2027-01-01')
-    expect(screen.getByLabelText(/planned end/i)).toHaveValue('2027-06-30')
     expect(screen.getByLabelText(/planned budget/i)).toHaveValue(5000)
+
+    const start = dateGroupSections(/start date/i)
+    expect(start.year).toHaveTextContent('2027')
+    expect(start.month).toHaveTextContent('01')
+    expect(start.day).toHaveTextContent('01')
+
+    const plannedEnd = dateGroupSections(/planned end/i)
+    expect(plannedEnd.year).toHaveTextContent('2027')
+    expect(plannedEnd.month).toHaveTextContent('06')
+    expect(plannedEnd.day).toHaveTextContent('30')
+
     await waitFor(() => expect(mockFetchDepartments).toHaveBeenCalled())
     expect(screen.getByRole('combobox', { name: /^status/i })).toHaveTextContent('ACTIVE')
     expect(screen.getByRole('combobox', { name: /^priority/i })).toHaveTextContent('HIGH')
@@ -177,7 +230,7 @@ describe('edit mode', () => {
     mockUpdateProject.mockResolvedValue({ ...existingProject, priority: 'CRITICAL' })
     const onSaved = vi.fn()
 
-    render(<ProjectFormDialog open project={existingProject} onClose={vi.fn()} onSaved={onSaved} />)
+    renderDialog({ open: true, project: existingProject, onClose: vi.fn(), onSaved })
     await waitFor(() => expect(mockFetchDepartments).toHaveBeenCalled())
     await selectOption(/^priority/i, 'CRITICAL')
     await userEvent.click(screen.getByRole('button', { name: 'Save Changes' }))
@@ -185,7 +238,7 @@ describe('edit mode', () => {
     await waitFor(() =>
       expect(mockUpdateProject).toHaveBeenCalledWith(
         'p1',
-        expect.objectContaining({ code: 'PR03', priority: 'CRITICAL' }),
+        expect.objectContaining({ code: 'PR03', priority: 'CRITICAL', start_date: '2027-01-01', planned_end: '2027-06-30' }),
       ),
     )
     expect(onSaved).toHaveBeenCalled()

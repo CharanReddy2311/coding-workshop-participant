@@ -12,6 +12,8 @@ import {
   Stack,
   Switch,
   TextField,
+  useMediaQuery,
+  useTheme,
 } from '@mui/material'
 
 import { ApiError } from '../services/api'
@@ -48,6 +50,8 @@ function withCurrentValue(options, currentId, currentLabel) {
  */
 export default function TeamFormDialog({ open, team, onClose, onSaved }) {
   const isEdit = Boolean(team)
+  const theme = useTheme()
+  const fullScreen = useMediaQuery(theme.breakpoints.down('sm'))
 
   const [form, setForm] = useState(() => toFormState(team))
   const [fieldErrors, setFieldErrors] = useState({})
@@ -131,7 +135,7 @@ export default function TeamFormDialog({ open, team, onClose, onSaved }) {
   )
 
   return (
-    <Dialog open={open} onClose={submitting ? undefined : onClose} fullWidth maxWidth="sm">
+    <Dialog open={open} onClose={submitting ? undefined : onClose} fullWidth maxWidth="sm" fullScreen={fullScreen}>
       <DialogTitle>{isEdit ? `Edit ${team.name}` : 'Create Team'}</DialogTitle>
       <Box component="form" onSubmit={handleSubmit}>
         <DialogContent>
