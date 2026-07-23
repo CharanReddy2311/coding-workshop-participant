@@ -3,7 +3,9 @@ import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 
 import ProtectedRoute from './components/ProtectedRoute'
 import { AuthProvider } from './context/AuthContext'
+import Allocations from './pages/Allocations'
 import Dashboard from './pages/Dashboard'
+import Deliverables from './pages/Deliverables'
 import Login from './pages/Login'
 import Projects from './pages/Projects'
 import Teams from './pages/Teams'
@@ -43,6 +45,22 @@ export default function App() {
               element={
                 <ProtectedRoute>
                   <Projects />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/deliverables"
+              element={
+                <ProtectedRoute>
+                  <Deliverables />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/allocations"
+              element={
+                <ProtectedRoute>
+                  <Allocations />
                 </ProtectedRoute>
               }
             />

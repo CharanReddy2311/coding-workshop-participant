@@ -7,6 +7,8 @@ const NAV_LINKS = [
   { to: '/', label: 'Dashboard' },
   { to: '/teams', label: 'Teams' },
   { to: '/projects', label: 'Projects' },
+  { to: '/deliverables', label: 'Deliverables' },
+  { to: '/allocations', label: 'Allocations' },
 ]
 
 /** Shared top nav bar for every authenticated page. */
