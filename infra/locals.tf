@@ -102,6 +102,7 @@ locals {
     APP_ROLE      = format("arn:%s:iam::%s:role/%s-assume-%s-%s", data.aws_partition.this.partition, data.aws_caller_identity.this.account_id, var.aws_project, data.aws_region.this.region, local.app_id)
     APP_REGION    = data.aws_region.this.region
     IS_LOCAL      = data.aws_caller_identity.this.id == "000000000000" ? "true" : "false"
+    JWT_SECRET    = data.aws_caller_identity.this.id == "000000000000" ? "local-development-secret-do-not-use-in-cloud" : random_password.jwt.result
     POSTGRES_HOST = data.aws_caller_identity.this.id == "000000000000" ? coalesce(try(trimspace(var.aws_postgres_host), ""), "172.17.0.1") : try(one(aws_rds_cluster.this.*.endpoint), "")
     POSTGRES_PORT = data.aws_caller_identity.this.id == "000000000000" ? "5432" : try(one(aws_rds_cluster.this.*.port), "")
     POSTGRES_NAME = data.aws_caller_identity.this.id == "000000000000" ? "postgres" : try(one(aws_rds_cluster.this.*.database_name), "")
