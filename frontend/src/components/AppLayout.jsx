@@ -12,9 +12,9 @@ import {
   Stack,
   Toolbar,
   Typography,
-  useMediaQuery,
   useTheme,
 } from '@mui/material'
+import { useMediaQuery } from 'react-responsive'
 import { Link, useLocation } from 'react-router-dom'
 
 import { useAuth } from '../context/AuthContext'
@@ -47,7 +47,11 @@ export default function AppLayout({ children }) {
   // row without overflowing the Toolbar. Switching to the hamburger menu
   // earlier, while there's still headroom, is what actually prevents that
   // overflow rather than just reacting to it.
-  const isMobile = useMediaQuery(theme.breakpoints.down('lg'))
+  // The breakpoint is evaluated by react-responsive, but the threshold itself
+  // still comes from the MUI theme so both libraries agree on where "mobile"
+  // starts (theme.breakpoints.values.lg is 1200; MUI's own down('lg') resolves
+  // to max-width: 1199.95px, which this mirrors exactly).
+  const isMobile = useMediaQuery({ maxWidth: theme.breakpoints.values.lg - 0.05 })
   const [menuAnchor, setMenuAnchor] = useState(null)
 
   return (
